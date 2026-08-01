@@ -85,6 +85,8 @@ static void WriteProfile(rapidjson::PrettyWriter<rapidjson::StringBuffer>& write
 	writer.Uint(profile.onnxScale);
 	writer.Key("onnxBackend");
 	writer.Uint(profile.onnxBackend);
+	writer.Key("onnxStaticEngine");
+	writer.Uint(profile.onnxStaticEngine);
 	writer.Key("captureMethod");
 	writer.Uint((uint32_t)profile.captureMethod);
 	writer.Key("multiMonitorUsage");
@@ -791,6 +793,10 @@ bool AppSettings::_LoadProfile(
 	}
 	if (profile.onnxBackend > 1) {
 		profile.onnxBackend = 0;
+	}
+	JsonHelper::ReadUInt(profileObj, "onnxStaticEngine", profile.onnxStaticEngine);
+	if (profile.onnxStaticEngine > 1) {
+		profile.onnxStaticEngine = 0;
 	}
 
 	{
