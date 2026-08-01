@@ -119,6 +119,34 @@ ProfileViewModel::ProfileViewModel(int profileIdx) : _isDefaultProfile(profileId
 		_captureMethods = single_threaded_vector(std::move(captureMethods));
 	}
 
+	{
+		// 扫描 models\*.onnx / enumerate the models folder. Relative path, so it
+		// resolves against the working directory like model.json does.
+		std::vector<IInspectable> onnxModels;
+		onnxModels.push_back(box_value(L"None"));
+		_onnxModelPaths.clear();
+		_onnxModelPaths.push_back(std::wstring());
+
+		WIN32_FIND_DATAW findData{};
+		HANDLE hFind = FindFirstFileW(L"models\\*.onnx", &findData);
+		if (hFind != INVALID_HANDLE_VALUE) {
+			do {
+				if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+					continue;
+				}
+				_onnxModelPaths.push_back(std::wstring(L"models\\") + findData.cFileName);
+				onnxModels.push_back(box_value(findData.cFileName));
+			} while (FindNextFileW(hFind, &findData));
+			FindClose(hFind);
+		}
+		_onnxModels = single_threaded_vector(std::move(onnxModels));
+
+		std::vector<IInspectable> onnxBackends;
+		onnxBackends.push_back(box_value(L"DirectML"));
+		onnxBackends.push_back(box_value(L"TensorRT"));
+		_onnxBackends = single_threaded_vector(std::move(onnxBackends));
+	}
+
 	_graphicsCards = GetAllGraphicsCards();
 	if (_data->graphicsCard >= _graphicsCards.size()) {
 		_data->graphicsCard = -1;
@@ -450,6 +478,60 @@ void ProfileViewModel::CaptureMethod(int value) {
 	_data->captureMethod = captureMethod;
 	RaisePropertyChanged(L"CaptureMethod");
 	RaisePropertyChanged(L"CanCaptureTitleBar");
+
+	AppSettings::Get().SaveAsync();
+}
+
+int ProfileViewModel::OnnxModel() const noexcept {
+	for (size_t i = 0; i < _onnxModelPaths.size(); ++i) {
+		if (_onnxModelPaths[i] == _data->onnxModel) {
+			return (int)i;
+		}
+	}
+	// 配置中的模型已不存在 / configured model is gone
+	return 0;
+}
+
+void ProfileViewModel::OnnxModel(int value) {
+	if (value < 0 || (size_t)value >= _onnxModelPaths.size()) {
+		return;
+	}
+	if (_data->onnxModel == _onnxModelPaths[value]) {
+		return;
+	}
+
+	_data->onnxModel = _onnxModelPaths[value];
+	RaisePropertyChanged(L"OnnxModel");
+
+	AppSettings::Get().SaveAsync();
+}
+
+int ProfileViewModel::OnnxBackend() const noexcept {
+	return (int)_data->onnxBackend;
+}
+
+void ProfileViewModel::OnnxBackend(int value) {
+	if (value < 0 || value > 1 || (int)_data->onnxBackend == value) {
+		return;
+	}
+
+	_data->onnxBackend = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxBackend");
+
+	AppSettings::Get().SaveAsync();
+}
+
+int ProfileViewModel::OnnxScale() const noexcept {
+	return (int)_data->onnxScale;
+}
+
+void ProfileViewModel::OnnxScale(int value) {
+	if (value < 1 || value > 8 || (int)_data->onnxScale == value) {
+		return;
+	}
+
+	_data->onnxScale = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxScale");
 
 	AppSettings::Get().SaveAsync();
 }
