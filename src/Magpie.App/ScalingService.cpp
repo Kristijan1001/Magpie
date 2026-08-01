@@ -250,6 +250,9 @@ bool ScalingService::_StartScale(HWND hWnd, const Profile& profile) {
 	
 	options.graphicsCard = profile.graphicsCard;
 	options.captureMethod = profile.captureMethod;
+	options.onnxModel = profile.onnxModel;
+	options.onnxScale = profile.onnxScale;
+	options.onnxBackend = profile.onnxBackend;
 	if (profile.isFrameRateLimiterEnabled) {
 		options.maxFrameRate = profile.maxFrameRate;
 	}
