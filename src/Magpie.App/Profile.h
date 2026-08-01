@@ -31,6 +31,9 @@ struct Profile {
 		cursorInterpolationMode = other.cursorInterpolationMode;
 		launchParameters = other.launchParameters;
 		scalingFlags = other.scalingFlags;
+		onnxModel = other.onnxModel;
+		onnxScale = other.onnxScale;
+		onnxBackend = other.onnxBackend;
 	}
 
 	DEFINE_FLAG_ACCESSOR(IsWindowResizingDisabled, ::Magpie::Core::ScalingFlags::DisableWindowResizing, scalingFlags)
@@ -69,6 +72,14 @@ struct Profile {
 	std::wstring launchParameters;
 
 	uint32_t scalingFlags = ::Magpie::Core::ScalingFlags::AdjustCursorSpeed | ::Magpie::Core::ScalingFlags::DrawCursor;
+
+	// ONNX 模型，为空则不使用 / empty means no ONNX upscaling.
+	// 默认配置文件即全局设置，具名配置文件覆盖它
+	// The default profile is the global setting; named profiles override it.
+	std::wstring onnxModel;
+	uint32_t onnxScale = 2;
+	// 0 = DirectML, 1 = TensorRT
+	uint32_t onnxBackend = 0;
 
 	bool isPackaged = false;
 	bool isCroppingEnabled = false;
