@@ -37,6 +37,8 @@ struct Profile {
 		onnxStaticEngine = other.onnxStaticEngine;
 		onnxDynamicMaxWidth = other.onnxDynamicMaxWidth;
 		onnxDynamicMaxHeight = other.onnxDynamicMaxHeight;
+		onnxDynamicMinWidth = other.onnxDynamicMinWidth;
+		onnxDynamicMinHeight = other.onnxDynamicMinHeight;
 	}
 
 	DEFINE_FLAG_ACCESSOR(IsWindowResizingDisabled, ::Magpie::Core::ScalingFlags::DisableWindowResizing, scalingFlags)
@@ -88,6 +90,9 @@ struct Profile {
 	// 0 = auto / 0 = auto (tier from the window size)
 	uint32_t onnxDynamicMaxWidth = 0;
 	uint32_t onnxDynamicMaxHeight = 0;
+	// 0 = 1x1
+	uint32_t onnxDynamicMinWidth = 0;
+	uint32_t onnxDynamicMinHeight = 0;
 
 	bool isPackaged = false;
 	bool isCroppingEnabled = false;
