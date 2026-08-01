@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "OnnxEffectDrawer.h"
 #include "Logger.h"
+#include "OnnxStatus.h"
 #include "DirectMLInferenceBackend.h"
 #include "TensorRTInferenceBackend.h"
 #include "Win32Helper.h"
@@ -202,7 +203,7 @@ bool OnnxEffectDrawer::Initialize(
 			"初始化推理后端失败 / inference backend failed to initialize. Usual "
 			"causes: the scale does not match the model, or the model is not a "
 			"supported [-1,3,-1,-1] NCHW fp16/fp32 upscaler.");
-		ReportStatus(L"AI upscaling failed",
+		OnnxStatus::Report(L"AI upscaling failed",
 			L"The model could not be initialized. Check that the scale matches the "
 			L"model, then see logs\\magpie.log.");
 		return false;

@@ -23,16 +23,6 @@ public:
 
 	void Draw(EffectsProfiler& profiler) const noexcept;
 
-	// 由应用层安装，用于把状态显示给用户（托盘气球）
-	// Installed by the app layer to surface status to the user (tray balloon).
-	// Called from the scaling thread - the implementation must marshal.
-	static inline std::function<void(std::wstring, std::wstring)> StatusCallback;
-
-	static void ReportStatus(std::wstring title, std::wstring text) noexcept {
-		if (StatusCallback) {
-			StatusCallback(std::move(title), std::move(text));
-		}
-	}
 
 private:
 	std::unique_ptr<InferenceBackendBase> _inferenceBackend;
