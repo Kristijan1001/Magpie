@@ -501,6 +501,28 @@ void ProfileViewModel::OnnxModel(int value) {
 	}
 
 	_data->onnxModel = _onnxModelPaths[value];
+
+	// 从文件名推断倍率 / infer the factor from the filename. A wrong scale makes
+	// inference fail every frame with a shape mismatch = black screen, so never
+	// leave a stale value behind when the model changes.
+	if (!_data->onnxModel.empty()) {
+		std::wstring lower = _data->onnxModel;
+		for (wchar_t& ch : lower) {
+			ch = (wchar_t)towlower(ch);
+		}
+		uint32_t detected = 0;
+		for (uint32_t f = 1; f <= 8; ++f) {
+			const std::wstring a = L"x" + std::to_wstring(f);
+			const std::wstring b = std::to_wstring(f) + L"x";
+			if (lower.find(a) != std::wstring::npos || lower.find(b) != std::wstring::npos) {
+				detected = f;
+				break;
+			}
+		}
+		_data->onnxScale = detected ? detected : 2;
+		RaisePropertyChanged(L"OnnxScale");
+	}
+
 	RaisePropertyChanged(L"OnnxModel");
 
 	// 同步保存：SaveAsync 可能在进程退出前来不及落盘，导致选择丢失
