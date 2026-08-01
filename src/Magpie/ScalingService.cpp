@@ -367,7 +367,7 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 
 	options.graphicsCardId = profile.graphicsCardId;
 	options.captureMethod = profile.captureMethod;
-	Logger::Get().Info("[trace] _StartScale: building options");
+	Logger::Get().Error("[trace] _StartScale: building options");
 	options.onnxModel = profile.onnxModel;
 	options.onnxScale = profile.onnxScale;
 	options.onnxBackend = profile.onnxBackend;
@@ -504,7 +504,7 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 		);
 	};
 
-	Logger::Get().Info("[trace] _StartScale: calling ScalingRuntime::Start");
+	Logger::Get().Error("[trace] _StartScale: calling ScalingRuntime::Start");
 	if (!_scalingRuntime->Start(hWnd, std::move(options), force)) {
 		return ScalingError::ScalingFailedGeneral;
 	}
