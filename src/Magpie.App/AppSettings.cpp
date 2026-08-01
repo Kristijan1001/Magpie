@@ -91,6 +91,10 @@ static void WriteProfile(rapidjson::PrettyWriter<rapidjson::StringBuffer>& write
 	writer.Uint(profile.onnxDynamicMaxWidth);
 	writer.Key("onnxDynamicMaxHeight");
 	writer.Uint(profile.onnxDynamicMaxHeight);
+	writer.Key("onnxDynamicMinWidth");
+	writer.Uint(profile.onnxDynamicMinWidth);
+	writer.Key("onnxDynamicMinHeight");
+	writer.Uint(profile.onnxDynamicMinHeight);
 	writer.Key("captureMethod");
 	writer.Uint((uint32_t)profile.captureMethod);
 	writer.Key("multiMonitorUsage");
@@ -809,6 +813,14 @@ bool AppSettings::_LoadProfile(
 	}
 	if (profile.onnxDynamicMaxHeight > 16384) {
 		profile.onnxDynamicMaxHeight = 0;
+	}
+	JsonHelper::ReadUInt(profileObj, "onnxDynamicMinWidth", profile.onnxDynamicMinWidth);
+	JsonHelper::ReadUInt(profileObj, "onnxDynamicMinHeight", profile.onnxDynamicMinHeight);
+	if (profile.onnxDynamicMinWidth > 16384) {
+		profile.onnxDynamicMinWidth = 0;
+	}
+	if (profile.onnxDynamicMinHeight > 16384) {
+		profile.onnxDynamicMinHeight = 0;
 	}
 
 	{
