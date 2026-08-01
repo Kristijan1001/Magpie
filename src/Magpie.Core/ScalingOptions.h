@@ -121,6 +121,11 @@ struct ScalingOptions {
 	// 1 = static engine (min=opt=max=window): fastest, one engine per size.
 	// 0 = dynamic (min 1x1 .. max tier): one engine reused across sizes.
 	uint32_t onnxStaticEngine = 0;
+	// 动态引擎的最大分辨率，0 = 自动（按窗口取档位）
+	// Max size of a dynamic engine's profile. 0 = auto (next tier up from the
+	// window). Set it to cover the largest window you will ever scale.
+	uint32_t onnxDynamicMaxWidth = 0;
+	uint32_t onnxDynamicMaxHeight = 0;
 
 	void Log() const noexcept;
 };
