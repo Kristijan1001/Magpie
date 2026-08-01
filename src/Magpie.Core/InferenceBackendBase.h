@@ -1,7 +1,7 @@
 #pragma once
 #include <onnxruntime_cxx_api.h>
 
-namespace Magpie::Core {
+namespace Magpie {
 
 class DeviceResources;
 class BackendDescriptorStore;

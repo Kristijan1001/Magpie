@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "HashHelper.h"
 
-namespace Magpie::Core {
+namespace Magpie {
 
 // FNV-1a. 仅用于缓存键，不需要密码学强度，但必须稳定
 // FNV-1a. Only used as a cache key - no cryptographic strength needed, but it

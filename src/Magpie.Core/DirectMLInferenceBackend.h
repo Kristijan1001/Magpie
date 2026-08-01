@@ -4,7 +4,7 @@
 
 struct OrtDmlApi;
 
-namespace Magpie::Core {
+namespace Magpie {
 
 class DirectMLInferenceBackend : public InferenceBackendBase {
 public:

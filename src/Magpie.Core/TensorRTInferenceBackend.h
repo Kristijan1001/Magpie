@@ -3,7 +3,7 @@
 
 struct cudaGraphicsResource;
 
-namespace Magpie::Core {
+namespace Magpie {
 
 class TensorRTInferenceBackend : public InferenceBackendBase {
 public:

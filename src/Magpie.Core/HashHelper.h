@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Magpie::Core {
+namespace Magpie {
 
 // 上游移除了 Utils::HashData，这里自带实现以免依赖已删除的头文件
 // Upstream removed Utils::HashData, so this carries its own implementation

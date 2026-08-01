@@ -9,7 +9,7 @@
 #include "ScalingWindow.h"
 #include "ScalingOptions.h"
 
-namespace Magpie::Core {
+namespace Magpie {
 
 OnnxEffectDrawer::OnnxEffectDrawer() {}
 

@@ -3,7 +3,7 @@
 #include "StrHelper.h"
 #include "Logger.h"
 
-namespace Magpie::Core {
+namespace Magpie {
 
 void ORT_API_CALL InferenceBackendBase::_OrtLog(
 	void* /*param*/,

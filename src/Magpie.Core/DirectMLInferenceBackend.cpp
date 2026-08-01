@@ -8,7 +8,7 @@
 #include <onnxruntime/core/providers/dml/dml_provider_factory.h>
 #include "Win32Helper.h"
 
-namespace Magpie::Core {
+namespace Magpie {
 
 static winrt::com_ptr<ID3D12Device> CreateD3D12Device(IDXGIAdapter4* adapter) noexcept {
 #ifdef _DEBUG
@@ -106,7 +106,7 @@ bool DirectMLInferenceBackend::Initialize(
 	ID3D11Device5* d3d11Device = deviceResources.GetD3DDevice();
 	_d3d11DC = deviceResources.GetD3DDC();
 
-	const SIZE inputSize = DirectXHelper::GetTextureSize(input);
+	const SIZE inputSize = OnnxHelper::GetTextureSize(input);
 	const SIZE outputSize{ inputSize.cx * (LONG)scale, inputSize.cy * (LONG)scale };
 
 	// 创建输出纹理

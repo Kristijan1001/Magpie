@@ -22,7 +22,7 @@
 #include <NvInfer.h>
 #pragma warning(pop)
 
-namespace Magpie::Core {
+namespace Magpie {
 
 static void LogCudaError(std::string_view msg, cudaError_t cudaResult) noexcept {
 	Logger::Get().Error(fmt::format("{}\n\tCUDA error code: {}", msg, (int)cudaResult));
@@ -220,7 +220,7 @@ bool TensorRTInferenceBackend::Initialize(
 	// profiles" and the user just saw a black screen. Derive the profile from the
 	// actual input instead - GetCacheDir already hashes these shapes, so each
 	// resolution simply gets its own cached engine.
-	const SIZE inputSize = DirectXHelper::GetTextureSize(input);
+	const SIZE inputSize = OnnxHelper::GetTextureSize(input);
 
 	bool isFP16Data = false;
 	try {
