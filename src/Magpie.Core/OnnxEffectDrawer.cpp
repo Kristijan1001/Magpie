@@ -6,6 +6,8 @@
 #include "Win32Utils.h"
 #include <rapidjson/document.h>
 #include "StrUtils.h"
+#include "ScalingWindow.h"
+#include "ScalingOptions.h"
 
 namespace Magpie::Core {
 
@@ -64,8 +66,23 @@ bool OnnxEffectDrawer::Initialize(
 	BackendDescriptorStore& descriptorStore,
 	ID3D11Texture2D** inOutTexture
 ) noexcept {
+	std::string modelPath;
+	uint32_t scale = 1;
+	std::string backend;
+
+	// The profile wins. Magpie's default profile doubles as the global
+	// setting and named profiles override it, so this gives both global and
+	// per-game config. model.json stays as a fallback for existing setups.
+	const ScalingOptions& onnxOptions = ScalingWindow::Get().Options();
+	const bool fromProfile = !onnxOptions.onnxModel.empty();
+	if (fromProfile) {
+		modelPath = StrUtils::UTF16ToUTF8(onnxOptions.onnxModel);
+		scale = onnxOptions.onnxScale;
+		backend = onnxOptions.onnxBackend == 1 ? "tensorrt" : "directml";
+	}
+
 	const wchar_t* jsonPath = L"model.json";
-	if (!Win32Utils::FileExists(jsonPath)) {
+	if (!fromProfile && !Win32Utils::FileExists(jsonPath)) {
 		// Relative path -> resolved against the working directory, not the exe
 		// folder. Launched with the wrong cwd this silently disables ONNX, so
 		// name the directory we actually looked in.
@@ -78,15 +95,13 @@ bool OnnxEffectDrawer::Initialize(
 	}
 	
 	std::string json;
-	if (!Win32Utils::ReadTextFile(jsonPath, json)) {
-		Logger::Get().Error("Win32Utils::ReadTextFile 失败");
-		return false;
-	}
+	if (!fromProfile) {
+		if (!Win32Utils::ReadTextFile(jsonPath, json)) {
+			Logger::Get().Error("Win32Utils::ReadTextFile 失败");
+			return false;
+		}
 
-	std::string modelPath;
-	uint32_t scale = 1;
-	std::string backend;
-	{
+		{
 		rapidjson::Document doc;
 		doc.ParseInsitu(json.data());
 		if (doc.HasParseError()) {
@@ -100,6 +115,7 @@ bool OnnxEffectDrawer::Initialize(
 		if (!ReadJson(doc, modelPath, scale, backend)) {
 			Logger::Get().Error("ReadJson 失败");
 			return false;
+		}
 		}
 	}
 	
@@ -116,7 +132,8 @@ bool OnnxEffectDrawer::Initialize(
 	}
 
 	Logger::Get().Info(fmt::format(
-		"ONNX model: path='{}' scale=x{} backend={}", modelPath, scale, backend));
+		"ONNX model: path='{}' scale=x{} backend={} (from {})",
+		modelPath, scale, backend, fromProfile ? "profile" : "model.json"));
 
 	std::wstring modelPathW = StrUtils::UTF8ToUTF16(modelPath);
 	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, *inOutTexture, inOutTexture)) {
