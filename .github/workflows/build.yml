@@ -9,7 +9,11 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # Blocker 1: windows-latest now ships Visual Studio 18 (MSVC 14.44). This tag
+    # is from April 2025 and Conan has no prebuilt fmt/11.1.3 for that toolset, so
+    # it tries to compile fmt from source and fails. Pin the older image instead
+    # of bumping deps, which keeps the build closer to what upstream tested.
+    runs-on: windows-2022
     strategy:
       matrix:
         platform: ["x64"]
@@ -28,12 +32,70 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.conan2/p
-        key: Conan-${{ hashFiles('src/**/conanfile.txt') }}-${{ matrix.platform }}
+        key: Conan-${{ hashFiles('src/**/conanfile.txt') }}-${{ matrix.platform }}-vs2022
 
-    # No signing cert in this fork. publish.py only runs signtool when the
-    # password argument is non-empty:
-    #   if len(sys.argv) >= 5 and sys.argv[4] != "":
-    # so passing "" skips signing and the build still produces a usable exe.
+    # Blocker 3a: TensorRTInferenceBackend.cpp calls the CUDA runtime
+    # (cudaImportExternalMemory, cudaSetDevice, ...) and includes
+    # <cuda_d3d11_interop.h>. Magpie.App links cudart.lib. The default install
+    # location matches the path already hardcoded in Common.Post.props.
+    - name: Install CUDA Toolkit
+      uses: Jimver/cuda-toolkit@v0.2.24
+      with:
+        cuda: '12.8.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
+
+    # Blocker 3b: onnxruntime. Upstream builds it from source at
+    # S:\onnxruntime; use Microsoft's prebuilt GPU release for headers + import lib.
+    - name: Fetch onnxruntime
+      shell: pwsh
+      run: |
+        $ver = "1.21.0"
+        curl.exe -fsSL -o ort.zip "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-gpu-$ver.zip"
+        Expand-Archive ort.zip -DestinationPath C:\sdk -Force
+        Move-Item "C:\sdk\onnxruntime-win-x64-gpu-$ver" C:\sdk\onnxruntime
+        Write-Host "--- ORT layout ---"
+        Get-ChildItem C:\sdk\onnxruntime -Recurse -Depth 1 | Select-Object FullName | Format-Table -AutoSize
+
+    # Blocker 3c: NvInfer.h. Note nvinfer1 is never actually referenced in
+    # Magpie's code (only in a comment) and nothing links nvinfer, so the
+    # open-source headers are sufficient - no NVIDIA login / SDK needed.
+    - name: Fetch TensorRT headers
+      shell: pwsh
+      run: |
+        git clone --depth 1 --branch release/10.8 https://github.com/NVIDIA/TensorRT.git C:\trt-oss
+        New-Item -ItemType Directory -Force C:\sdk\TensorRT\include, C:\sdk\TensorRT\lib | Out-Null
+        Copy-Item C:\trt-oss\include\* C:\sdk\TensorRT\include -Recurse -Force
+        Get-ChildItem C:\sdk\TensorRT\include | Select-Object Name | Format-Table -AutoSize
+
+    # Magpie.App links directml.lib and includes DirectML headers, which upstream
+    # picks up from its own onnxruntime source tree. Take them from the NuGet.
+    - name: Fetch DirectML
+      shell: pwsh
+      run: |
+        curl.exe -fsSL -o dml.zip "https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML"
+        Expand-Archive dml.zip -DestinationPath C:\sdk\dml-pkg -Force
+        New-Item -ItemType Directory -Force C:\sdk\DirectML\include, C:\sdk\DirectML\lib | Out-Null
+        Copy-Item C:\sdk\dml-pkg\include\* C:\sdk\DirectML\include -Recurse -Force
+        Copy-Item C:\sdk\dml-pkg\bin\x64-win\*.lib C:\sdk\DirectML\lib -Force
+        Get-ChildItem C:\sdk\DirectML -Recurse | Select-Object FullName | Format-Table -AutoSize
+
+    # Blocker 2: Common.Post.props hardcodes the upstream author's drive layout
+    # (S:\onnxruntime, S:\TensorRT-10.8.0.43). Repoint at the CI layout.
+    - name: Repoint SDK paths
+      shell: pwsh
+      run: |
+        $p = "src/Common.Post.props"
+        $c = [IO.File]::ReadAllText($p)
+        $c = $c.Replace('S:\onnxruntime\build\Windows\Release\Release', 'C:\sdk\onnxruntime\lib')
+        $c = $c.Replace('S:\onnxruntime\include',      'C:\sdk\onnxruntime\include')
+        $c = $c.Replace('S:\TensorRT-10.8.0.43\include','C:\sdk\TensorRT\include;C:\sdk\DirectML\include')
+        $c = $c.Replace('S:\TensorRT-10.8.0.43\lib',    'C:\sdk\TensorRT\lib;C:\sdk\DirectML\lib')
+        [IO.File]::WriteAllText($p, $c, (New-Object Text.UTF8Encoding($false)))
+        Select-String -Path $p -Pattern 'C:\\sdk|NVIDIA GPU' | ForEach-Object { $_.Line.Trim() }
+
+    # No signing cert in a fork: publish.py skips signtool when the password
+    # argument is empty (`if len(sys.argv) >= 5 and sys.argv[4] != ""`).
     - name: Build
       run: python publish.py ${{ matrix.platform }} unpackaged certs\Magpie.pfx ""
 
@@ -44,5 +106,5 @@ jobs:
     - name: Store build
       uses: actions/upload-artifact@v4
       with:
-          name: Magpie-dev-${{ steps.hash.outputs.sha_short }}-${{ matrix.platform }}
+          name: Magpie-onnx-${{ steps.hash.outputs.sha_short }}-${{ matrix.platform }}
           path: ./publish/${{ matrix.platform }}
