@@ -180,6 +180,29 @@
 					          ItemsSource="{x:Bind ViewModel.CaptureMethods, Mode=OneTime}"
 					          SelectedIndex="{x:Bind ViewModel.CaptureMethod, Mode=TwoWay}" />
 				</local:SettingsCard>
+				<local:SettingsCard Header="AI upscaling model"
+				                    Description="ONNX model from the models folder. Runs before the scaling mode's effects.">
+					<local:SettingsCard.HeaderIcon>
+						<FontIcon Glyph="&#xE99A;" />
+					</local:SettingsCard.HeaderIcon>
+					<ComboBox DropDownOpened="ComboBox_DropDownOpened"
+					          ItemsSource="{x:Bind ViewModel.OnnxModels, Mode=OneTime}"
+					          SelectedIndex="{x:Bind ViewModel.OnnxModel, Mode=TwoWay}" />
+				</local:SettingsCard>
+				<local:SettingsCard Header="AI inference backend"
+				                    Description="TensorRT is faster on NVIDIA but the first scale at each resolution builds an engine, which takes minutes.">
+					<ComboBox DropDownOpened="ComboBox_DropDownOpened"
+					          ItemsSource="{x:Bind ViewModel.OnnxBackends, Mode=OneTime}"
+					          SelectedIndex="{x:Bind ViewModel.OnnxBackend, Mode=TwoWay}" />
+				</local:SettingsCard>
+				<local:SettingsCard Header="AI model scale"
+				                    Description="Must match the model's real factor or scaling fails.">
+					<muxc:NumberBox Value="{x:Bind ViewModel.OnnxScale, Mode=TwoWay}"
+					                Minimum="1"
+					                Maximum="8"
+					                SmallChange="1"
+					                SpinButtonPlacementMode="Compact" />
+				</local:SettingsCard>
 				<local:SettingsCard x:Name="AutoScaleSettingsCard"
 				                    x:Uid="Profile_General_AutoScale"
 				                    x:Load="{x:Bind ViewModel.IsNotDefaultProfile, Mode=OneTime}">
