@@ -207,6 +207,22 @@
 				                    Description="On: fastest, but a separate engine is built for every window size. Off: one engine is reused for that size and smaller.">
 					<ToggleSwitch IsOn="{x:Bind ViewModel.OnnxStaticEngine, Mode=TwoWay}" />
 				</local:SettingsCard>
+				<local:SettingsCard Header="Dynamic engine max size"
+				                    Description="Largest window a dynamic engine must cover. 0 = auto. Bigger costs more VRAM and a longer build; it is reused for anything smaller.">
+					<local:SimpleStackPanel Orientation="Horizontal"
+					                        Spacing="8">
+						<muxc:NumberBox Value="{x:Bind ViewModel.OnnxDynamicMaxWidth, Mode=TwoWay}"
+						                Minimum="0"
+						                Maximum="16384"
+						                SmallChange="64"
+						                SpinButtonPlacementMode="Compact" />
+						<muxc:NumberBox Value="{x:Bind ViewModel.OnnxDynamicMaxHeight, Mode=TwoWay}"
+						                Minimum="0"
+						                Maximum="16384"
+						                SmallChange="64"
+						                SpinButtonPlacementMode="Compact" />
+					</local:SimpleStackPanel>
+				</local:SettingsCard>
 				<local:SettingsCard x:Name="AutoScaleSettingsCard"
 				                    x:Uid="Profile_General_AutoScale"
 				                    x:Load="{x:Bind ViewModel.IsNotDefaultProfile, Mode=OneTime}">
