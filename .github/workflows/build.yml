@@ -69,10 +69,31 @@ jobs:
 
         curl.exe -fsSL -o ortdml.zip "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/$ver"
         Expand-Archive ortdml.zip -DestinationPath C:\sdk\ort-dml -Force
-        $dmlLib = Get-ChildItem C:\sdk\ort-dml -Recurse -Filter onnxruntime.lib | Select-Object -First 1
-        if (-not $dmlLib) { throw "no onnxruntime.lib in the DirectML package" }
+
+        # The package ships win-x64 / win-x86 / win-arm64 side by side, so pick x64
+        # explicitly - grabbing the first match links an ARM64/x86 import lib and
+        # every ORT symbol (OrtGetApiBase, ...) comes back unresolved.
+        Write-Host "--- onnxruntime.lib candidates ---"
+        Get-ChildItem C:\sdk\ort-dml -Recurse -Filter onnxruntime.lib |
+          ForEach-Object { Write-Host "  $($_.FullName)" }
+        $dmlLib = Get-ChildItem C:\sdk\ort-dml -Recurse -Filter onnxruntime.lib |
+          Where-Object { $_.FullName -match '(win-)?x64' -and $_.FullName -notmatch 'arm' } |
+          Select-Object -First 1
+        if (-not $dmlLib) { throw "no x64 onnxruntime.lib in the DirectML package" }
         Write-Host "using DML import lib: $($dmlLib.FullName)"
         Copy-Item $dmlLib.FullName C:\sdk\onnxruntime\lib -Force
+
+        # Prove the two symbols we actually need are present before spending 5
+        # minutes discovering it at link time.
+        $dumpbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe |
+          Where-Object { $_.FullName -match 'Hostx64\\x64' } | Select-Object -First 1
+        if ($dumpbin) {
+          $syms = & $dumpbin.FullName /linkermember:1 C:\sdk\onnxruntime\lib\onnxruntime.lib
+          foreach ($needle in @('OrtGetApiBase','SessionOptionsAppendExecutionProvider_DML')) {
+            $hit = $syms | Select-String $needle | Select-Object -First 1
+            Write-Host ("  {0,-45} {1}" -f $needle, $(if ($hit) { 'FOUND' } else { 'MISSING' }))
+          }
+        }
 
         Write-Host "--- ORT layout ---"
         Get-ChildItem C:\sdk\onnxruntime\lib | Select-Object Name | Format-Table -AutoSize
