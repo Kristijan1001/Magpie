@@ -118,6 +118,9 @@ struct ScalingOptions {
 	uint32_t onnxScale = 2;
 	// 0 = DirectML, 1 = TensorRT
 	uint32_t onnxBackend = 0;
+	// 1 = static engine (min=opt=max=window): fastest, one engine per size.
+	// 0 = dynamic (min 1x1 .. max tier): one engine reused across sizes.
+	uint32_t onnxStaticEngine = 0;
 
 	void Log() const noexcept;
 };
