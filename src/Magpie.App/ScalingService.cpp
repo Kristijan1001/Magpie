@@ -350,21 +350,36 @@ static bool GetWindowIntegrityLevel(HWND hWnd, DWORD& integrityLevel) noexcept {
 
 bool ScalingService::_CheckSrcWnd(HWND hWnd, bool checkIL) noexcept {
 	if (!hWnd || !IsWindowVisible(hWnd)) {
+		if (checkIL) {
+			Logger::Get().Info("refused to scale: no foreground window, or it is not visible");
+		}
 		return false;
 	}
 
 	// 不缩放不接受点击的窗口
 	if (GetWindowLongPtr(hWnd, GWL_EXSTYLE) & WS_EX_TRANSPARENT) {
+		if (checkIL) {
+			Logger::Get().Info("refused to scale: window is click-through (WS_EX_TRANSPARENT)");
+		}
 		return false;
 	}
 
 	if (WindowHelper::IsForbiddenSystemWindow(hWnd)) {
+		if (checkIL) {
+			Logger::Get().Info("refused to scale: system window (desktop, taskbar, Start menu, ...)");
+		}
 		return false;
 	}
 
 	// 不缩放最小化的窗口，是否缩放最大化的窗口由设置决定
 	if (UINT showCmd = Win32Utils::GetWindowShowCmd(hWnd); showCmd != SW_NORMAL) {
 		if (showCmd != SW_MAXIMIZE || !AppSettings::Get().IsAllowScalingMaximized()) {
+			if (checkIL) {
+				Logger::Get().Info("refused to scale: window show state is " + std::to_string(showCmd) +
+					" (need 1=SW_NORMAL, or 3=SW_MAXIMIZE with allowScalingMaximized). "
+					"An exclusive-fullscreen game cannot be scaled at all - Magpie has to "
+					"overlay a window on top of it. Switch the game to borderless or windowed.");
+			}
 			return false;
 		}
 	}
