@@ -34,6 +34,7 @@ struct Profile {
 		onnxModel = other.onnxModel;
 		onnxScale = other.onnxScale;
 		onnxBackend = other.onnxBackend;
+		onnxStaticEngine = other.onnxStaticEngine;
 	}
 
 	DEFINE_FLAG_ACCESSOR(IsWindowResizingDisabled, ::Magpie::Core::ScalingFlags::DisableWindowResizing, scalingFlags)
@@ -80,6 +81,8 @@ struct Profile {
 	uint32_t onnxScale = 2;
 	// 0 = DirectML, 1 = TensorRT
 	uint32_t onnxBackend = 0;
+	// 1 = static TensorRT engine, 0 = dynamic
+	uint32_t onnxStaticEngine = 0;
 
 	bool isPackaged = false;
 	bool isCroppingEnabled = false;
