@@ -3,9 +3,9 @@
 #include "Logger.h"
 #include "DirectMLInferenceBackend.h"
 #include "TensorRTInferenceBackend.h"
-#include "Win32Utils.h"
+#include "Win32Helper.h"
 #include <rapidjson/document.h>
-#include "StrUtils.h"
+#include "StrHelper.h"
 #include "ScalingWindow.h"
 #include "ScalingOptions.h"
 
@@ -76,28 +76,28 @@ bool OnnxEffectDrawer::Initialize(
 	const ScalingOptions& onnxOptions = ScalingWindow::Get().Options();
 	const bool fromProfile = !onnxOptions.onnxModel.empty();
 	if (fromProfile) {
-		modelPath = StrUtils::UTF16ToUTF8(onnxOptions.onnxModel);
+		modelPath = StrHelper::UTF16ToUTF8(onnxOptions.onnxModel);
 		scale = onnxOptions.onnxScale;
 		backend = onnxOptions.onnxBackend == 1 ? "tensorrt" : "directml";
 	}
 
 	const wchar_t* jsonPath = L"model.json";
-	if (!fromProfile && !Win32Utils::FileExists(jsonPath)) {
+	if (!fromProfile && !Win32Helper::FileExists(jsonPath)) {
 		// Relative path -> resolved against the working directory, not the exe
 		// folder. Launched with the wrong cwd this silently disables ONNX, so
 		// name the directory we actually looked in.
 		wchar_t cwd[MAX_PATH]{};
 		GetCurrentDirectoryW(MAX_PATH, cwd);
-		Logger::Get().Info(StrUtils::Concat(
-			"model.json not found in ", StrUtils::UTF16ToUTF8(cwd),
+		Logger::Get().Info(StrHelper::Concat(
+			"model.json not found in ", StrHelper::UTF16ToUTF8(cwd),
 			" - ONNX upscaling disabled for this scale"));
 		return true;
 	}
 	
 	std::string json;
 	if (!fromProfile) {
-		if (!Win32Utils::ReadTextFile(jsonPath, json)) {
-			Logger::Get().Error("Win32Utils::ReadTextFile 失败");
+		if (!Win32Helper::ReadTextFile(jsonPath, json)) {
+			Logger::Get().Error("Win32Helper::ReadTextFile 失败");
 			return false;
 		}
 
@@ -119,13 +119,13 @@ bool OnnxEffectDrawer::Initialize(
 		}
 	}
 	
-	StrUtils::ToLowerCase(backend);
+	StrHelper::ToLowerCase(backend);
 	if (backend == "directml" || backend == "dml" || backend == "d") {
 		_inferenceBackend = std::make_unique<DirectMLInferenceBackend>();
 	} else if (backend == "tensorrt" || backend == "trt" || backend == "t") {
 		_inferenceBackend = std::make_unique<TensorRTInferenceBackend>();
 	} else {
-		Logger::Get().Error(StrUtils::Concat(
+		Logger::Get().Error(StrHelper::Concat(
 			"未知 backend '", backend,
 			"' - expected one of: directml|dml|d, tensorrt|trt|t"));
 		return false;
@@ -135,7 +135,7 @@ bool OnnxEffectDrawer::Initialize(
 		"ONNX model: path='{}' scale=x{} backend={} (from {})",
 		modelPath, scale, backend, fromProfile ? "profile" : "model.json"));
 
-	std::wstring modelPathW = StrUtils::UTF8ToUTF16(modelPath);
+	std::wstring modelPathW = StrHelper::UTF8ToUTF16(modelPath);
 	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, *inOutTexture, inOutTexture)) {
 		return false;
 	}

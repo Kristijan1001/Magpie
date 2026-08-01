@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "InferenceBackendBase.h"
-#include "StrUtils.h"
+#include "StrHelper.h"
 #include "Logger.h"
 
 namespace Magpie::Core {
@@ -21,7 +21,7 @@ void ORT_API_CALL InferenceBackendBase::_OrtLog(
 		"fatal"
 	};
 
-	std::string log = StrUtils::Concat("[", SEVERITIES[severity], "] ", message);
+	std::string log = StrHelper::Concat("[", SEVERITIES[severity], "] ", message);
 	if (severity == ORT_LOGGING_LEVEL_INFO) {
 		Logger::Get().Info(log);
 		OutputDebugStringA((log + "\n").c_str());

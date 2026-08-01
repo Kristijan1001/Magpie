@@ -7,11 +7,10 @@
 #include "BackendDescriptorStore.h"
 #include "Logger.h"
 #include "DirectXHelper.h"
-#include "Utils.h"
 #include "OnnxHelper.h"
 #include "HashHelper.h"
-#include "Win32Utils.h"
-#include "StrUtils.h"
+#include "Win32Helper.h"
+#include "StrHelper.h"
 #include "ScalingWindow.h"
 #include "ScalingOptions.h"
 #include "CommonSharedConstants.h"
@@ -90,7 +89,7 @@ static std::wstring GetCacheDir(
 	// * 是否启用半精度
 	std::string str = fmt::format(
 		"modelHash:{}\nortVersion:{}\ntrtVersion:{}\nvendorId:{}\ndeviceId:{}\nminShapes:{},{}\nmaxShapes:{},{}\noptShapes:{},{}\noptLevel:{}\nfp16:{}",
-		Utils::HashData(modelData), Ort::GetVersionString(), NV_TENSORRT_VERSION, desc.VendorId, desc.DeviceId,
+		HashHelper::Hash64(modelData), Ort::GetVersionString(), NV_TENSORRT_VERSION, desc.VendorId, desc.DeviceId,
 		minShapes.first, minShapes.second, maxShapes.first, maxShapes.second, optShapes.first,
 		optShapes.second, optimizationLevel, enableFP16);
 
@@ -107,7 +106,7 @@ static std::wstring GetCacheDir(
 	dirName += L'_';
 	dirName += strHash;
 
-	return StrUtils::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", dirName);
+	return StrHelper::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", dirName);
 }
 
 static void* ShareBufferWithCuda(
@@ -192,7 +191,7 @@ bool TensorRTInferenceBackend::Initialize(
 	ID3D11Texture2D* input,
 	ID3D11Texture2D** output
 ) noexcept {
-	if (!Win32Utils::FileExists(L"third_party\\onnxruntime_providers_tensorrt.dll")) {
+	if (!Win32Helper::FileExists(L"third_party\\onnxruntime_providers_tensorrt.dll")) {
 		Logger::Get().Error("未安装 TensorRT 拓展");
 		return false;
 	}
@@ -576,7 +575,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		// cache dir names are <stem>_<W>x<H>_<hash>
 		const std::wstring stem = ModelStem(modelPath);
 		const std::wstring pattern =
-			StrUtils::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", stem, L"_*");
+			StrHelper::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", stem, L"_*");
 		uint32_t bestW = 0;
 		uint32_t bestH = 0;
 		WIN32_FIND_DATAW fd{};
@@ -652,7 +651,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 	const uint8_t optimizationLevel = 5;
 
 	std::vector<uint8_t> modelData;
-	if (!Win32Utils::ReadFile(modelPath, modelData)) {
+	if (!Win32Helper::ReadFile(modelPath, modelData)) {
 		Logger::Get().Error("读取模型失败");
 		return false;
 	}
@@ -667,7 +666,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		optimizationLevel,
 		enableFP16
 	);
-	if (!Win32Utils::CreateDir(cacheDir, true)) {
+	if (!Win32Helper::CreateDir(cacheDir, true)) {
 		Logger::Get().Win32Error("创建缓存文件夹失败");
 		return false;
 	}
@@ -699,8 +698,8 @@ bool TensorRTInferenceBackend::_CreateSession(
 		std::string maxShapesStr = fmt::format("input:1x3x{}x{}", maxShapes.second, maxShapes.first);
 		std::string optShapesStr = fmt::format("input:1x3x{}x{}", optShapes.second, optShapes.first);
 
-		std::string cacheDirANSI = StrUtils::UTF16ToANSI(cacheDir);
-		std::string cacheCtxPathANSI = StrUtils::UTF16ToANSI(cacheCtxPath);
+		std::string cacheDirANSI = StrHelper::UTF16ToANSI(cacheDir);
+		std::string cacheCtxPathANSI = StrHelper::UTF16ToANSI(cacheCtxPath);
 
 		const char* values[]{
 			deviceIdStr.c_str(),
@@ -733,7 +732,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 	// Building an engine blocks this thread for minutes with no other feedback,
 	// which is indistinguishable from a hang. Say so explicitly, and time both
 	// paths so a cache hit vs a rebuild is obvious after the fact.
-	const bool engineCached = Win32Utils::FileExists(cacheCtxPath.c_str());
+	const bool engineCached = Win32Helper::FileExists(cacheCtxPath.c_str());
 	Logger::Get().Info(fmt::format(
 		"TensorRT session: input {}x{}, profile {}x{}, fp16={}, optLevel={}, engine cache {}",
 		inputWidth, inputHeight, profileWidth, profileHeight,
@@ -741,7 +740,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 
 	const uint64_t startTick = GetTickCount64();
 	if (engineCached) {
-		Logger::Get().Info("读取缓存 " + StrUtils::UTF16ToUTF8(cacheCtxPath));
+		Logger::Get().Info("读取缓存 " + StrHelper::UTF16ToUTF8(cacheCtxPath));
 		_session = Ort::Session(_env, cacheCtxPath.c_str(), sessionOptions);
 	} else {
 		Logger::Get().Info(

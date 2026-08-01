@@ -6,7 +6,7 @@
 #include "shaders/TextureToTensorCS.h"
 #include "Logger.h"
 #include <onnxruntime/core/providers/dml/dml_provider_factory.h>
-#include "Win32Utils.h"
+#include "Win32Helper.h"
 
 namespace Magpie::Core {
 

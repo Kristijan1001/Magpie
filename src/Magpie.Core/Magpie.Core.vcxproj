@@ -78,6 +78,7 @@
     <ClInclude Include="PresenterBase.h" />
     <ClInclude Include="DirectMLInferenceBackend.h" />
     <ClInclude Include="InferenceBackendBase.h" />
+    <ClInclude Include="HashHelper.h" />
     <ClInclude Include="OnnxEffectDrawer.h" />
     <ClInclude Include="OnnxHelper.h" />
     <ClInclude Include="TensorRTInferenceBackend.h" />
@@ -120,6 +121,7 @@
     <ClCompile Include="PresenterBase.cpp" />
     <ClCompile Include="DirectMLInferenceBackend.cpp" />
     <ClCompile Include="InferenceBackendBase.cpp" />
+    <ClCompile Include="HashHelper.cpp" />
     <ClCompile Include="OnnxEffectDrawer.cpp" />
     <ClCompile Include="TensorRTInferenceBackend.cpp" />
     <ClCompile Include="Renderer.cpp" />
