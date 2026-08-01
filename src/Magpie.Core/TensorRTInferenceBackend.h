@@ -34,7 +34,9 @@ private:
 		uint32_t inputHeight,
 		bool staticEngine,
 		uint32_t dynamicMaxWidth,
-		uint32_t dynamicMaxHeight
+		uint32_t dynamicMaxHeight,
+		uint32_t dynamicMinWidth,
+		uint32_t dynamicMinHeight
 	);
 
 	Ort::Env _env{ nullptr };
