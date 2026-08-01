@@ -31,7 +31,8 @@ private:
 		Ort::SessionOptions& sessionOptions,
 		const wchar_t* modelPath,
 		uint32_t inputWidth,
-		uint32_t inputHeight
+		uint32_t inputHeight,
+		bool staticEngine
 	);
 
 	Ort::Env _env{ nullptr };
