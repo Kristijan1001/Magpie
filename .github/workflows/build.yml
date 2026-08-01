@@ -3,34 +3,35 @@ name: build
 on:
   workflow_dispatch:
   push:
-    paths: [ '.github/workflows/build.yml', 'Magpie.sln', '*.props', 'publish.py', 'src/**' ]
+    paths: [ '.github/workflows/build.yml', 'Magpie.slnx', '*.props', 'scripts/publish.py', 'src/**' ]
   pull_request:
-    paths: [ '.github/workflows/build.yml', 'Magpie.sln', '*.props', 'publish.py', 'src/**' ]
+    paths: [ '.github/workflows/build.yml', 'Magpie.slnx', '*.props', 'scripts/publish.py', 'src/**' ]
 
 jobs:
   build:
-    # windows-latest ships Visual Studio 18; Conan has no prebuilt fmt for that
-    # toolset and building it from source fails. Pin the older image.
-    runs-on: windows-2022
+    runs-on: windows-2025-vs2026
     strategy:
       matrix:
+        # ONNX/TensorRT only needs the x64 MSVC build; ARM64 has no TensorRT and
+        # ClangCL would just double the CI time.
+        compiler: ["MSVC"]
         platform: ["x64"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7
       with:
-        python-version: '3.11'
+        python-version: '3.13'
 
     - name: Setup Conan
       run: pip install conan
 
     - name: Load Conan cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.conan2/p
-        key: Conan-${{ hashFiles('src/**/conanfile.txt') }}-${{ matrix.platform }}-vs2022
+        key: Conan-${{ hashFiles('src/**/conanfile.txt') }}-${{ matrix.compiler }}-${{ matrix.platform }}
 
     # TensorRTInferenceBackend.cpp calls the CUDA runtime and includes
     # <cuda_d3d11_interop.h>; Magpie links cudart.lib.
@@ -85,7 +86,7 @@ jobs:
         New-Item -ItemType Directory -Force C:\sdk\TensorRT\include, C:\sdk\TensorRT\lib | Out-Null
         Copy-Item C:\trt-oss\include\* C:\sdk\TensorRT\include -Recurse -Force
 
-    # publish.py skips signtool when the password argument is empty.
+    # No signing cert in this fork: publish.py skips signtool when --pfx-path is empty.
     - name: Build
       env:
         OrtDir: C:\sdk\onnxruntime
@@ -93,14 +94,14 @@ jobs:
         OrtLibDir: C:\sdk\onnxruntime\lib
         TrtDir: C:\sdk\TensorRT
         DmlDir: C:\sdk\dml
-      run: python publish.py ${{ matrix.platform }} unpackaged certs\Magpie.pfx ""
+      run: python scripts/publish.py --compiler=${{ matrix.compiler }} --platform=${{ matrix.platform }}
 
     - name: Save hash
       id: hash
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $env:GITHUB_OUTPUT
 
     - name: Store build
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
           name: Magpie-onnx-v012-${{ steps.hash.outputs.sha_short }}-${{ matrix.platform }}
           path: ./publish/${{ matrix.platform }}
