@@ -238,7 +238,9 @@ bool TensorRTInferenceBackend::Initialize(
 			uint32_t(inputSize.cx), uint32_t(inputSize.cy),
 			ScalingWindow::Get().Options().onnxStaticEngine != 0,
 			ScalingWindow::Get().Options().onnxDynamicMaxWidth,
-			ScalingWindow::Get().Options().onnxDynamicMaxHeight)) {
+			ScalingWindow::Get().Options().onnxDynamicMaxHeight,
+			ScalingWindow::Get().Options().onnxDynamicMinWidth,
+			ScalingWindow::Get().Options().onnxDynamicMinHeight)) {
 			Logger::Get().Error("_CreateSession 失败");
 			return false;
 		}
@@ -544,7 +546,9 @@ bool TensorRTInferenceBackend::_CreateSession(
 	uint32_t inputHeight,
 	bool staticEngine,
 	uint32_t dynamicMaxWidth,
-	uint32_t dynamicMaxHeight
+	uint32_t dynamicMaxHeight,
+	uint32_t dynamicMinWidth,
+	uint32_t dynamicMinHeight
 ) {
 	// TensorRT profiles are a range (min..max): an engine built for 1440p serves
 	// any smaller window, but not a larger one. So round the input up to the next
@@ -630,9 +634,17 @@ bool TensorRTInferenceBackend::_CreateSession(
 		profileHeight = std::min(inputHeight, 65535u);
 	}
 
+	// 动态引擎的下限由用户指定，0 表示 1x1
+	// Lower bound of a dynamic profile. 0 means 1x1. Never let it exceed the
+	// current input or the max, or TensorRT rejects the profile outright.
+	uint32_t minWidth = dynamicMinWidth == 0 ? 1u : dynamicMinWidth;
+	uint32_t minHeight = dynamicMinHeight == 0 ? 1u : dynamicMinHeight;
+	minWidth = std::clamp(minWidth, 1u, std::min(inputWidth, profileWidth));
+	minHeight = std::clamp(minHeight, 1u, std::min(inputHeight, profileHeight));
+
 	const std::pair<uint16_t, uint16_t> minShapes = staticEngine
 		? std::pair<uint16_t, uint16_t>{ uint16_t(profileWidth), uint16_t(profileHeight) }
-		: std::pair<uint16_t, uint16_t>{ uint16_t(1), uint16_t(1) };
+		: std::pair<uint16_t, uint16_t>{ uint16_t(minWidth), uint16_t(minHeight) };
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 
