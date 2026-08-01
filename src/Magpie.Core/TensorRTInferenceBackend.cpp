@@ -525,9 +525,12 @@ bool TensorRTInferenceBackend::_CreateSession(
 	const uint32_t profileWidth = (inputWidth + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
 	const uint32_t profileHeight = (inputHeight + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
 
-	const std::pair<uint16_t, uint16_t> minShapes(uint16_t(1), uint16_t(1));
-	const std::pair<uint16_t, uint16_t> maxShapes(uint16_t(profileWidth), uint16_t(profileHeight));
-	const std::pair<uint16_t, uint16_t> optShapes(uint16_t(profileWidth), uint16_t(profileHeight));
+	// NB: brace-init. Parenthesised init with an *identifier* inside a functional
+	// cast - maxShapes(uint16_t(profileWidth), ...) - is parsed as a function
+	// declaration (most vexing parse), not an object.
+	const std::pair<uint16_t, uint16_t> minShapes{ uint16_t(1), uint16_t(1) };
+	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
+	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 
 	const bool enableFP16 = true;
 	const uint8_t optimizationLevel = 5;
