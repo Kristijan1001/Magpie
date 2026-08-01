@@ -236,7 +236,9 @@ bool TensorRTInferenceBackend::Initialize(
 
 		if (!_CreateSession(deviceResources, deviceId, sessionOptions, modelPath,
 			uint32_t(inputSize.cx), uint32_t(inputSize.cy),
-			ScalingWindow::Get().Options().onnxStaticEngine != 0)) {
+			ScalingWindow::Get().Options().onnxStaticEngine != 0,
+			ScalingWindow::Get().Options().onnxDynamicMaxWidth,
+			ScalingWindow::Get().Options().onnxDynamicMaxHeight)) {
 			Logger::Get().Error("_CreateSession 失败");
 			return false;
 		}
@@ -540,7 +542,9 @@ bool TensorRTInferenceBackend::_CreateSession(
 	const wchar_t* modelPath,
 	uint32_t inputWidth,
 	uint32_t inputHeight,
-	bool staticEngine
+	bool staticEngine,
+	uint32_t dynamicMaxWidth,
+	uint32_t dynamicMaxHeight
 ) {
 	// TensorRT profiles are a range (min..max): an engine built for 1440p serves
 	// any smaller window, but not a larger one. So round the input up to the next
@@ -608,6 +612,13 @@ bool TensorRTInferenceBackend::_CreateSession(
 			profileWidth = bestW;
 			profileHeight = bestH;
 		}
+	}
+
+	// 用户指定了动态引擎的上限则优先使用 / an explicit max wins over the tier
+	// search: the user knows the largest window they will actually scale.
+	if (!staticEngine && dynamicMaxWidth != 0 && dynamicMaxHeight != 0) {
+		profileWidth = std::clamp(std::max(dynamicMaxWidth, inputWidth), 1u, 65535u);
+		profileHeight = std::clamp(std::max(dynamicMaxHeight, inputHeight), 1u, 65535u);
 	}
 
 	if (staticEngine) {
