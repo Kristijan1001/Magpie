@@ -449,10 +449,18 @@ bool TensorRTInferenceBackend::Initialize(
 }
 
 void TensorRTInferenceBackend::Evaluate() noexcept {
+	if (_evaluateFailed) {
+		// 已失败，直接跳过，让画面按未加 AI 的方式继续
+		// Already failed: skip, so the frame passes through without AI instead
+		// of going black.
+		return;
+	}
+
 	// 输入纹理 -> 输入张量
 	HRESULT hr = _inputBufferKmt->AcquireSync(_inputBufferMutexKey, INFINITE);
 	if (FAILED(hr)) {
 		Logger::Get().ComError("AcquireSync 失败", hr);
+		_OnEvaluateFailed();
 		return;
 	}
 
@@ -480,6 +488,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 		cudaError_t cudaResult = cudaWaitExternalSemaphoresAsync(semArr, extSemWaitParamsArr, 2);
 		if (cudaResult != cudaError_t::cudaSuccess) {
 			LogCudaError("cudaWaitExternalSemaphoresAsync 失败", cudaResult);
+			_OnEvaluateFailed();
 			return;
 		}
 	}
@@ -490,6 +499,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 		_session.Run(runOptions, _ioBinding);
 	} catch (const Ort::Exception& e) {
 		Logger::Get().Error(e.what());
+		_OnEvaluateFailed();
 		return;
 	}
 
@@ -506,6 +516,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 		cudaError_t cudaResult = cudaSignalExternalSemaphoresAsync(semArr, extSemSigParams, 2);
 		if (cudaResult != cudaError_t::cudaSuccess) {
 			LogCudaError("cudaSignalExternalSemaphoresAsync 失败", cudaResult);
+			_OnEvaluateFailed();
 			return;
 		}
 	}
@@ -514,6 +525,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	hr = _outputBufferKmt->AcquireSync(_outputBufferMutexKey, INFINITE);
 	if (FAILED(hr)) {
 		Logger::Get().ComError("AcquireSync 失败", hr);
+		_OnEvaluateFailed();
 		return;
 	}
 
@@ -539,6 +551,25 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	}
 
 	_outputBufferKmt->ReleaseSync(++_outputBufferMutexKey);
+}
+
+void TensorRTInferenceBackend::_OnEvaluateFailed() noexcept {
+	_evaluateFailed = true;
+
+	// 清掉非粘滞的 CUDA 错误，让下一次缩放从干净状态开始
+	// Clear non-sticky CUDA errors so the next scale starts clean. A sticky
+	// error (illegal address, launch failure) poisons the context for the
+	// lifetime of the process and genuinely does need a restart.
+	cudaGetLastError();
+
+	Logger::Get().Error(
+		"推理失败，本次缩放禁用 AI / inference failed - AI upscaling is disabled "
+		"for this scaling session. Stop and start scaling to retry; if it keeps "
+		"failing, restart Magpie to reset the CUDA context.");
+
+	OnnxEffectDrawer::ReportStatus(L"AI upscaling stopped",
+		L"Inference failed, so scaling continues without the model. Restart "
+		L"scaling to retry.");
 }
 
 bool TensorRTInferenceBackend::_CreateSession(

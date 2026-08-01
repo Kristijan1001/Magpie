@@ -74,6 +74,13 @@ private:
 	void* _outputBufferCudaSem = nullptr;
 
 	Ort::IoBinding _ioBinding{ nullptr };
+
+	// 一旦推理失败就停止，避免每帧刷屏并输出黑屏
+	// Latched on first failure: keeps a broken session from running every frame,
+	// spamming the log and drawing a black screen.
+	bool _evaluateFailed = false;
+
+	void _OnEvaluateFailed() noexcept;
 };
 
 }
