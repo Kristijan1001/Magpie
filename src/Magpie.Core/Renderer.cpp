@@ -74,6 +74,7 @@ static void SetGpuPriority() noexcept {
 }
 
 ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOptions) noexcept {
+	Logger::Get().Error("[trace] Renderer::Initialize: enter");
 	_backendThread = std::thread(&Renderer::_BackendThreadProc, this);
 
 	if (!_frontendResources.Initialize(true)) {

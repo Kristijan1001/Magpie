@@ -115,6 +115,7 @@ void ScalingService::CheckForeground() {
 }
 
 void ScalingService::_ShortcutService_ShortcutPressed(ShortcutAction action) {
+	Logger::Get().Error("[trace] shortcut pressed");
 	switch (action) {
 	case ShortcutAction::Scale:
 	case ShortcutAction::WindowedModeScale:
@@ -302,6 +303,7 @@ void ScalingService::_ScalingRuntime_StateChanged(ScalingState value) {
 }
 
 void ScalingService::_ScaleForegroundWindow(bool windowedMode) {
+	Logger::Get().Error("[trace] _ScaleForegroundWindow: enter");
 	const HWND hWnd = GetForegroundWindow();
 	if (!hWnd) {
 		return;
@@ -312,6 +314,7 @@ void ScalingService::_ScaleForegroundWindow(bool windowedMode) {
 }
 
 void ScalingService::_StartScale(HWND hWnd, const Profile& profile, bool windowedMode, bool force) {
+	Logger::Get().Error("[trace] _StartScale: enter");
 	assert(hWnd);
 
 	const ScalingError error = _StartScaleImpl(hWnd, profile, windowedMode, force);
@@ -321,6 +324,7 @@ void ScalingService::_StartScale(HWND hWnd, const Profile& profile, bool windowe
 }
 
 ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, bool windowedMode, bool force) {
+	Logger::Get().Error("[trace] _StartScaleImpl: enter");
 	// ScalingRuntime::Start 会检查是否正在缩放，这里提前检查以避免无效操作
 	if (!force && _scalingRuntime->State() == ScalingState::Scaling) {
 		return ScalingError::NoError;
