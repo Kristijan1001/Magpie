@@ -126,6 +126,11 @@ struct ScalingOptions {
 	// window). Set it to cover the largest window you will ever scale.
 	uint32_t onnxDynamicMaxWidth = 0;
 	uint32_t onnxDynamicMaxHeight = 0;
+	// 动态引擎的最小分辨率，0 = 1x1
+	// Min size of a dynamic engine's profile. 0 = 1x1. A tighter min lets
+	// TensorRT pick better kernels, but the engine then rejects anything below it.
+	uint32_t onnxDynamicMinWidth = 0;
+	uint32_t onnxDynamicMinHeight = 0;
 
 	void Log() const noexcept;
 };
