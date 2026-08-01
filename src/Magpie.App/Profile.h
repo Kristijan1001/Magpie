@@ -35,6 +35,8 @@ struct Profile {
 		onnxScale = other.onnxScale;
 		onnxBackend = other.onnxBackend;
 		onnxStaticEngine = other.onnxStaticEngine;
+		onnxDynamicMaxWidth = other.onnxDynamicMaxWidth;
+		onnxDynamicMaxHeight = other.onnxDynamicMaxHeight;
 	}
 
 	DEFINE_FLAG_ACCESSOR(IsWindowResizingDisabled, ::Magpie::Core::ScalingFlags::DisableWindowResizing, scalingFlags)
@@ -83,6 +85,9 @@ struct Profile {
 	uint32_t onnxBackend = 0;
 	// 1 = static TensorRT engine, 0 = dynamic
 	uint32_t onnxStaticEngine = 0;
+	// 0 = auto / 0 = auto (tier from the window size)
+	uint32_t onnxDynamicMaxWidth = 0;
+	uint32_t onnxDynamicMaxHeight = 0;
 
 	bool isPackaged = false;
 	bool isCroppingEnabled = false;
