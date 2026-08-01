@@ -54,8 +54,29 @@ jobs:
         curl.exe -fsSL -o ort.zip "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-gpu-$ver.zip"
         Expand-Archive ort.zip -DestinationPath C:\sdk -Force
         Move-Item "C:\sdk\onnxruntime-win-x64-gpu-$ver" C:\sdk\onnxruntime
+
+        # Upstream builds ORT from source with the TensorRT AND DirectML EPs in one
+        # binary. Microsoft's prebuilt packages split them, and the GPU package has
+        # neither the DirectML EP header nor its export, so grab both separately.
+        #  - header: straight from the ORT source tree at the matching tag
+        #  - import lib: from the DirectML package. TensorRT/CUDA are reached through
+        #    the OrtApi function table so they need no link-time symbol, but
+        #    SessionOptionsAppendExecutionProvider_DML1 is a direct export.
+        $dst = "C:\sdk\onnxruntime\include\onnxruntime\core\providers\dml"
+        New-Item -ItemType Directory -Force $dst | Out-Null
+        curl.exe -fsSL -o "$dst\dml_provider_factory.h" `
+          "https://raw.githubusercontent.com/microsoft/onnxruntime/v$ver/include/onnxruntime/core/providers/dml/dml_provider_factory.h"
+
+        curl.exe -fsSL -o ortdml.zip "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/$ver"
+        Expand-Archive ortdml.zip -DestinationPath C:\sdk\ort-dml -Force
+        $dmlLib = Get-ChildItem C:\sdk\ort-dml -Recurse -Filter onnxruntime.lib | Select-Object -First 1
+        if (-not $dmlLib) { throw "no onnxruntime.lib in the DirectML package" }
+        Write-Host "using DML import lib: $($dmlLib.FullName)"
+        Copy-Item $dmlLib.FullName C:\sdk\onnxruntime\lib -Force
+
         Write-Host "--- ORT layout ---"
-        Get-ChildItem C:\sdk\onnxruntime -Recurse -Depth 1 | Select-Object FullName | Format-Table -AutoSize
+        Get-ChildItem C:\sdk\onnxruntime\lib | Select-Object Name | Format-Table -AutoSize
+        Get-ChildItem $dst | Select-Object Name | Format-Table -AutoSize
 
     # Blocker 3c: NvInfer.h. Note nvinfer1 is never actually referenced in
     # Magpie's code (only in a comment) and nothing links nvinfer, so the
