@@ -211,6 +211,7 @@ bool TensorRTInferenceBackend::Initialize(
 		return false;
 	}
 
+	Logger::Get().Error("[trace] trt: cudaSetDevice");
 	cudaResult = cudaSetDevice(deviceId);
 	if (cudaResult != cudaError_t::cudaSuccess) {
 		LogCudaError("cudaSetDevice 失败", cudaResult);
@@ -229,7 +230,9 @@ bool TensorRTInferenceBackend::Initialize(
 	try {
 		const OrtApi& ortApi = Ort::GetApi();
 
+		Logger::Get().Error("[trace] trt: creating Ort::Env");
 		_env = Ort::Env(ORT_LOGGING_LEVEL_INFO, "", _OrtLog, nullptr);
+		Logger::Get().Error("[trace] trt: Ort::Env ok");
 
 		Ort::SessionOptions sessionOptions;
 		sessionOptions.SetIntraOpNumThreads(1);
@@ -587,6 +590,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 	// any smaller window, but not a larger one. So round the input up to the next
 	// standard tier, and if a BIGGER engine for this model is already cached,
 	// reuse its dimensions so we get a cache hit instead of building again.
+	Logger::Get().Error("[trace] _CreateSession: enter");
 	static constexpr uint32_t TIERS[][2] = {
 		{1280, 720}, {1920, 1080}, {2560, 1440}, {3200, 1800},
 		{3840, 2160}, {5120, 2880}, {7680, 4320}
@@ -605,6 +609,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		profileHeight = std::min(inputHeight, 65535u);
 	}
 
+	Logger::Get().Error("[trace] _CreateSession: tiers done");
 	{
 		// cache dir names are <stem>_<W>x<H>_<hash>
 		const std::wstring stem = ModelStem(modelPath);
@@ -658,6 +663,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		profileHeight = std::clamp(std::max(dynamicMaxHeight, inputHeight), 1u, 65535u);
 	}
 
+	Logger::Get().Error("[trace] _CreateSession: cache scan done");
 	if (staticEngine) {
 		// 静态引擎：min=opt=max，最快但只适用于该分辨率
 		// Static: min=opt=max. Fastest, because TensorRT tunes kernels for this
@@ -681,6 +687,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 
+	Logger::Get().Error("[trace] _CreateSession: shapes done");
 	const bool enableFP16 = true;
 	const uint8_t optimizationLevel = 5;
 
@@ -690,6 +697,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		return false;
 	}
 
+	Logger::Get().Error("[trace] _CreateSession: model read, calling GetCacheDir");
 	const std::wstring cacheDir = GetCacheDir(
 		modelData,
 		modelPath,
@@ -705,6 +713,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 		return false;
 	}
 
+	Logger::Get().Error("[trace] _CreateSession: cache dir ready");
 	const std::wstring cacheCtxPath = cacheDir + L"\\ctx.onnx";
 
 	const OrtApi& ortApi = Ort::GetApi();
