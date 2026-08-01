@@ -56,6 +56,7 @@ static bool CheckComputeCapability(int deviceId) noexcept {
 
 static std::wstring GetCacheDir(
 	const std::vector<uint8_t>& modelData,
+	const wchar_t* modelPath,
 	IDXGIAdapter4* adapter,
 	std::pair<uint16_t, uint16_t> minShapes,
 	std::pair<uint16_t, uint16_t> maxShapes,
@@ -81,7 +82,25 @@ static std::wstring GetCacheDir(
 		optShapes.second, optimizationLevel, enableFP16);
 
 	std::wstring strHash = HashHelper::HexHash(std::span((const BYTE*)str.data(), str.size()));
-	return StrUtils::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", strHash);
+	// 目录名带上模型名和分辨率，便于识别 / name the folder after the model and the
+	// profile size so the cache is identifiable at a glance instead of a bare hash.
+	std::wstring stem(modelPath);
+	if (size_t slash = stem.find_last_of(L"\\\\/"); slash != std::wstring::npos) {
+		stem.erase(0, slash + 1);
+	}
+	if (size_t dot = stem.find_last_of(L'.'); dot != std::wstring::npos) {
+		stem.erase(dot);
+	}
+
+	std::wstring dirName(stem);
+	dirName += L'_';
+	dirName += std::to_wstring(maxShapes.first);
+	dirName += L'x';
+	dirName += std::to_wstring(maxShapes.second);
+	dirName += L'_';
+	dirName += strHash;
+
+	return StrUtils::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", dirName);
 }
 
 static void* ShareBufferWithCuda(
@@ -543,6 +562,7 @@ bool TensorRTInferenceBackend::_CreateSession(
 
 	const std::wstring cacheDir = GetCacheDir(
 		modelData,
+		modelPath,
 		deviceResources.GetGraphicsAdapter(),
 		minShapes,
 		maxShapes,
