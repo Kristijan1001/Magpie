@@ -533,20 +533,16 @@ bool TensorRTInferenceBackend::_CreateSession(
 	uint32_t inputWidth,
 	uint32_t inputHeight
 ) {
-	// The engine profile has to cover the input, but GetCacheDir hashes these
-	// shapes - so using the raw size would mint a brand new engine for every
-	// one-pixel window change (borders, DPI rounding) and rebuild constantly.
-	// Round up to a 64px grid instead: a handful of engines cover every window
-	// size, and the extra profile headroom costs at most 63px per dimension.
-	// The cache is keyed per model as well, so engines for other models are
-	// never invalidated - nothing here ever deletes a cache entry.
-	constexpr uint32_t PROFILE_GRID = 64;
-	const uint32_t profileWidth = (inputWidth + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
-	const uint32_t profileHeight = (inputHeight + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
+	// Size the profile to the whole virtual desktop rather than to this frame.
+	// TensorRT profiles are a RANGE (min..max), so one engine covers every window
+	// size up to the display. Following the input instead meant a separate engine
+	// per size - GetCacheDir hashes these shapes - which rebuilt constantly.
+	uint32_t profileWidth = (uint32_t)GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	uint32_t profileHeight = (uint32_t)GetSystemMetrics(SM_CYVIRTUALSCREEN);
+	// Never smaller than the actual input, and keep it inside uint16_t.
+	profileWidth = std::clamp(std::max(profileWidth, inputWidth), 1u, 65535u);
+	profileHeight = std::clamp(std::max(profileHeight, inputHeight), 1u, 65535u);
 
-	// NB: brace-init. Parenthesised init with an *identifier* inside a functional
-	// cast - maxShapes(uint16_t(profileWidth), ...) - is parsed as a function
-	// declaration (most vexing parse), not an object.
 	const std::pair<uint16_t, uint16_t> minShapes{ uint16_t(1), uint16_t(1) };
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
