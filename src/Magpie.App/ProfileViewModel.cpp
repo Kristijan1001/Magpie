@@ -503,7 +503,9 @@ void ProfileViewModel::OnnxModel(int value) {
 	_data->onnxModel = _onnxModelPaths[value];
 	RaisePropertyChanged(L"OnnxModel");
 
-	AppSettings::Get().SaveAsync();
+	// 同步保存：SaveAsync 可能在进程退出前来不及落盘，导致选择丢失
+	// Synchronous: SaveAsync may not reach disk before exit, losing the pick.
+	AppSettings::Get().Save();
 }
 
 int ProfileViewModel::OnnxBackend() const noexcept {
@@ -518,7 +520,9 @@ void ProfileViewModel::OnnxBackend(int value) {
 	_data->onnxBackend = (uint32_t)value;
 	RaisePropertyChanged(L"OnnxBackend");
 
-	AppSettings::Get().SaveAsync();
+	// 同步保存：SaveAsync 可能在进程退出前来不及落盘，导致选择丢失
+	// Synchronous: SaveAsync may not reach disk before exit, losing the pick.
+	AppSettings::Get().Save();
 }
 
 int ProfileViewModel::OnnxScale() const noexcept {
@@ -533,7 +537,9 @@ void ProfileViewModel::OnnxScale(int value) {
 	_data->onnxScale = (uint32_t)value;
 	RaisePropertyChanged(L"OnnxScale");
 
-	AppSettings::Get().SaveAsync();
+	// 同步保存：SaveAsync 可能在进程退出前来不及落盘，导致选择丢失
+	// Synchronous: SaveAsync may not reach disk before exit, losing the pick.
+	AppSettings::Get().Save();
 }
 
 bool ProfileViewModel::IsAutoScale() const noexcept {
