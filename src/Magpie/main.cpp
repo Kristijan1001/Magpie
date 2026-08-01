@@ -26,8 +26,16 @@ using namespace winrt::Magpie::implementation;
 
 // 将当前目录设为程序所在目录
 static void SetWorkingDir() noexcept {
-	FAIL_FAST_IF_WIN32_BOOL_FALSE(SetCurrentDirectory(
-		Win32Helper::GetExePath().parent_path().c_str()));
+	const std::filesystem::path exeDir = Win32Helper::GetExePath().parent_path();
+	FAIL_FAST_IF_WIN32_BOOL_FALSE(SetCurrentDirectory(exeDir.c_str()));
+
+	// onnxruntime / DirectML / cudart 从 third_party 延迟加载
+	// onnxruntime, DirectML and cudart are delay-loaded out of third_party\.
+	// Without this the first delay-load - cudaD3D11GetDevice inside
+	// TensorRTInferenceBackend::Initialize - raises and kills the process.
+	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+	const std::wstring thirdPartyDir = (exeDir / L"third_party").wstring();
+	AddDllDirectory(thirdPartyDir.c_str());
 }
 
 static void InitializeLogger(const wchar_t* logFilePath) noexcept {
