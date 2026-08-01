@@ -8,6 +8,8 @@
 #include "ScalingMode.h"
 #include "ScalingModesService.h"
 #include "ScalingService.h"
+#include "NotifyIconService.h"
+#include "OnnxEffectDrawer.h"
 #include "ShortcutService.h"
 #include "ToastService.h"
 #include "TouchHelper.h"
@@ -29,6 +31,13 @@ ScalingService& ScalingService::Get() noexcept {
 ScalingService::~ScalingService() {}
 
 void ScalingService::Initialize() {
+	// 把 Magpie.Core 的状态接到托盘气球上
+	// Wire Magpie.Core's status reports to tray balloons, so a multi-minute
+	// engine build or a broken model says so instead of looking like a hang.
+	OnnxEffectDrawer::StatusCallback = [](std::wstring title, std::wstring text) {
+		NotifyIconService::Get().ShowBalloon(std::move(title), std::move(text));
+	};
+
 	_scalingRuntime.emplace();
 	_scalingRuntime->StateChanged(
 		std::bind_front(&ScalingService::_ScalingRuntime_StateChanged, this));

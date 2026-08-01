@@ -8,6 +8,7 @@
 #include "Logger.h"
 #include "DirectXHelper.h"
 #include "OnnxHelper.h"
+#include "OnnxEffectDrawer.h"
 #include "HashHelper.h"
 #include "Win32Helper.h"
 #include "StrHelper.h"
@@ -23,6 +24,10 @@
 #pragma warning(pop)
 
 namespace Magpie {
+
+static void ReportEngineStatus(std::wstring title, std::wstring text) noexcept {
+	OnnxEffectDrawer::ReportStatus(std::move(title), std::move(text));
+}
 
 static void LogCudaError(std::string_view msg, cudaError_t cudaResult) noexcept {
 	Logger::Get().Error(fmt::format("{}\n\tCUDA error code: {}", msg, (int)cudaResult));
@@ -747,7 +752,14 @@ bool TensorRTInferenceBackend::_CreateSession(
 			"No cached TensorRT engine for this model at this resolution. Building one "
 			"now - this takes minutes and Magpie will appear frozen until it finishes. "
 			"Avoid GPU-heavy work meanwhile. It is cached afterwards and reused.");
+		ReportEngineStatus(L"Building AI engine",
+			L"First run at this resolution. This takes a few minutes and Magpie "
+			L"will look frozen until it finishes.");
 		_session = Ort::Session(_env, modelData.data(), modelData.size(), sessionOptions);
+	}
+	if (!engineCached) {
+		ReportEngineStatus(L"AI engine ready",
+			L"The engine is built and cached; later scales start instantly.");
 	}
 	Logger::Get().Info(fmt::format("TensorRT engine {} in {} ms",
 		engineCached ? "loaded from cache" : "BUILT", GetTickCount64() - startTick));

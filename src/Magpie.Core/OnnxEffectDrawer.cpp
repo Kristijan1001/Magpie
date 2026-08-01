@@ -145,10 +145,10 @@ bool OnnxEffectDrawer::Initialize(
 	// Pre-downscale: run the model at a lower resolution and let it scale back
 	// up. Without this a native-resolution window has nothing to upscale.
 	ID3D11Texture2D* backendInput = *inOutTexture;
-	if (options.onnxRenderWidth != 0 && options.onnxRenderHeight != 0) {
+	if (onnxOptions.onnxRenderWidth != 0 && onnxOptions.onnxRenderHeight != 0) {
 		const SIZE srcSize = OnnxHelper::GetTextureSize(*inOutTexture);
-		const uint32_t dstWidth = std::min((uint32_t)srcSize.cx, options.onnxRenderWidth);
-		const uint32_t dstHeight = std::min((uint32_t)srcSize.cy, options.onnxRenderHeight);
+		const uint32_t dstWidth = std::min((uint32_t)srcSize.cx, onnxOptions.onnxRenderWidth);
+		const uint32_t dstHeight = std::min((uint32_t)srcSize.cy, onnxOptions.onnxRenderHeight);
 
 		// 放大才有意义 / only worth doing when it actually reduces the size
 		if (dstWidth < (uint32_t)srcSize.cx || dstHeight < (uint32_t)srcSize.cy) {
