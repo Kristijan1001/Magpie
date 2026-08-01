@@ -189,6 +189,14 @@ bool TensorRTInferenceBackend::Initialize(
 		return false;
 	}
 
+	// TensorRT bakes an optimization profile into the engine at build time and
+	// rejects any input outside it. Upstream hardcoded a 1920x1080 maximum, so a
+	// larger source failed every frame with "does not satisfy any optimization
+	// profiles" and the user just saw a black screen. Derive the profile from the
+	// actual input instead - GetCacheDir already hashes these shapes, so each
+	// resolution simply gets its own cached engine.
+	const SIZE inputSize = DirectXHelper::GetTextureSize(input);
+
 	bool isFP16Data = false;
 	try {
 		const OrtApi& ortApi = Ort::GetApi();
@@ -200,7 +208,8 @@ bool TensorRTInferenceBackend::Initialize(
 
 		Ort::ThrowOnError(ortApi.AddFreeDimensionOverride(sessionOptions, "DATA_BATCH", 1));
 
-		if (!_CreateSession(deviceResources, deviceId, sessionOptions, modelPath)) {
+		if (!_CreateSession(deviceResources, deviceId, sessionOptions, modelPath,
+			uint32_t(inputSize.cx), uint32_t(inputSize.cy))) {
 			Logger::Get().Error("_CreateSession 失败");
 			return false;
 		}
@@ -219,7 +228,6 @@ bool TensorRTInferenceBackend::Initialize(
 	ID3D11Device5* d3dDevice = deviceResources.GetD3DDevice();
 	_d3dDC = deviceResources.GetD3DDC();
 
-	const SIZE inputSize = DirectXHelper::GetTextureSize(input);
 	const SIZE outputSize = SIZE{ inputSize.cx * (LONG)scale, inputSize.cy * (LONG)scale };
 
 	// 创建输出纹理
@@ -502,11 +510,13 @@ bool TensorRTInferenceBackend::_CreateSession(
 	DeviceResources& deviceResources,
 	int deviceId,
 	Ort::SessionOptions& sessionOptions,
-	const wchar_t* modelPath
+	const wchar_t* modelPath,
+	uint32_t inputWidth,
+	uint32_t inputHeight
 ) {
 	const std::pair<uint16_t, uint16_t> minShapes(uint16_t(1), uint16_t(1));
-	const std::pair<uint16_t, uint16_t> maxShapes(uint16_t(1920), uint16_t(1080));
-	const std::pair<uint16_t, uint16_t> optShapes(uint16_t(1920), uint16_t(1080));
+	const std::pair<uint16_t, uint16_t> maxShapes(uint16_t(inputWidth), uint16_t(inputHeight));
+	const std::pair<uint16_t, uint16_t> optShapes(uint16_t(inputWidth), uint16_t(inputHeight));
 
 	const bool enableFP16 = true;
 	const uint8_t optimizationLevel = 5;
