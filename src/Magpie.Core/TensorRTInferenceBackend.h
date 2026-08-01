@@ -29,7 +29,9 @@ private:
 		DeviceResources& deviceResources,
 		int deviceId,
 		Ort::SessionOptions& sessionOptions,
-		const wchar_t* modelPath
+		const wchar_t* modelPath,
+		uint32_t inputWidth,
+		uint32_t inputHeight
 	);
 
 	Ort::Env _env{ nullptr };
