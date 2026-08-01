@@ -95,6 +95,12 @@ struct ProfileViewModel : ProfileViewModelT<ProfileViewModel>,
 	int OnnxDynamicMaxHeight() const noexcept;
 	void OnnxDynamicMaxHeight(int value);
 
+	int OnnxDynamicMinWidth() const noexcept;
+	void OnnxDynamicMinWidth(int value);
+
+	int OnnxDynamicMinHeight() const noexcept;
+	void OnnxDynamicMinHeight(int value);
+
 	bool IsAutoScale() const noexcept;
 	void IsAutoScale(bool value);
 
