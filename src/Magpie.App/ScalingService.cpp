@@ -256,6 +256,8 @@ bool ScalingService::_StartScale(HWND hWnd, const Profile& profile) {
 	options.onnxStaticEngine = profile.onnxStaticEngine;
 	options.onnxDynamicMaxWidth = profile.onnxDynamicMaxWidth;
 	options.onnxDynamicMaxHeight = profile.onnxDynamicMaxHeight;
+	options.onnxDynamicMinWidth = profile.onnxDynamicMinWidth;
+	options.onnxDynamicMinHeight = profile.onnxDynamicMinHeight;
 	if (profile.isFrameRateLimiterEnabled) {
 		options.maxFrameRate = profile.maxFrameRate;
 	}
