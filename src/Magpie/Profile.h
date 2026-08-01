@@ -57,6 +57,8 @@ struct Profile {
 		onnxStaticEngine = other.onnxStaticEngine;
 		onnxDynamicMaxWidth = other.onnxDynamicMaxWidth;
 		onnxDynamicMaxHeight = other.onnxDynamicMaxHeight;
+		onnxRenderWidth = other.onnxRenderWidth;
+		onnxRenderHeight = other.onnxRenderHeight;
 		onnxDynamicMinWidth = other.onnxDynamicMinWidth;
 		onnxDynamicMinHeight = other.onnxDynamicMinHeight;
 		
@@ -117,6 +119,9 @@ struct Profile {
 	uint32_t onnxStaticEngine = 0;
 	uint32_t onnxDynamicMaxWidth = 0;
 	uint32_t onnxDynamicMaxHeight = 0;
+	// 推理前预降采样的目标分辨率，0 = 关闭 / pre-downscale target, 0 = off
+	uint32_t onnxRenderWidth = 0;
+	uint32_t onnxRenderHeight = 0;
 	uint32_t onnxDynamicMinWidth = 0;
 	uint32_t onnxDynamicMinHeight = 0;
 

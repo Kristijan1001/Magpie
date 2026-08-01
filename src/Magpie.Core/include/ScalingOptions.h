@@ -217,6 +217,11 @@ struct ScalingOptions {
 	// Bounds of a dynamic engine's profile. 0 = auto / 1x1.
 	uint32_t onnxDynamicMaxWidth = 0;
 	uint32_t onnxDynamicMaxHeight = 0;
+	// 推理前把画面降到这个分辨率，0 = 关闭
+	// Downscale to this size before inference. 0 = off. Makes a model useful
+	// on a native-res window and cuts inference cost.
+	uint32_t onnxRenderWidth = 0;
+	uint32_t onnxRenderHeight = 0;
 	uint32_t onnxDynamicMinWidth = 0;
 	uint32_t onnxDynamicMinHeight = 0;
 

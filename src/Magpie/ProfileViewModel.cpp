@@ -482,6 +482,36 @@ void ProfileViewModel::OnnxDynamicMaxHeight(int value) {
 	AppSettings::Get().Save();
 }
 
+int ProfileViewModel::OnnxRenderWidth() const noexcept {
+	return (int)_data->onnxRenderWidth;
+}
+
+void ProfileViewModel::OnnxRenderWidth(int value) {
+	if (value < 0 || value > 16384 || (int)_data->onnxRenderWidth == value) {
+		return;
+	}
+
+	_data->onnxRenderWidth = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxRenderWidth");
+
+	AppSettings::Get().Save();
+}
+
+int ProfileViewModel::OnnxRenderHeight() const noexcept {
+	return (int)_data->onnxRenderHeight;
+}
+
+void ProfileViewModel::OnnxRenderHeight(int value) {
+	if (value < 0 || value > 16384 || (int)_data->onnxRenderHeight == value) {
+		return;
+	}
+
+	_data->onnxRenderHeight = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxRenderHeight");
+
+	AppSettings::Get().Save();
+}
+
 int ProfileViewModel::OnnxDynamicMinWidth() const noexcept {
 	return (int)_data->onnxDynamicMinWidth;
 }

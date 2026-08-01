@@ -137,6 +137,9 @@
     <ClCompile Include="WindowHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <FxCompile Include="shaders\DownscaleCS.hlsl">
+      <ShaderType>Compute</ShaderType>
+    </FxCompile>
     <FxCompile Include="shaders\TextureToTensorCS.hlsl">
       <ShaderType>Compute</ShaderType>
     </FxCompile>

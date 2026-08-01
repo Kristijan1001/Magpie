@@ -8,6 +8,11 @@
 #include "StrHelper.h"
 #include "ScalingWindow.h"
 #include "ScalingOptions.h"
+#include "OnnxHelper.h"
+#include "DeviceResources.h"
+#include "DirectXHelper.h"
+#include "BackendDescriptorStore.h"
+#include "shaders/DownscaleCS.h"
 
 namespace Magpie {
 
@@ -136,7 +141,58 @@ bool OnnxEffectDrawer::Initialize(
 		modelPath, scale, backend, fromProfile ? "profile" : "model.json"));
 
 	std::wstring modelPathW = StrHelper::UTF8ToUTF16(modelPath);
-	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, *inOutTexture, inOutTexture)) {
+	// 预降采样：模型在更低分辨率上运行，然后由它放大回去
+	// Pre-downscale: run the model at a lower resolution and let it scale back
+	// up. Without this a native-resolution window has nothing to upscale.
+	ID3D11Texture2D* backendInput = *inOutTexture;
+	if (options.onnxRenderWidth != 0 && options.onnxRenderHeight != 0) {
+		const SIZE srcSize = OnnxHelper::GetTextureSize(*inOutTexture);
+		const uint32_t dstWidth = std::min((uint32_t)srcSize.cx, options.onnxRenderWidth);
+		const uint32_t dstHeight = std::min((uint32_t)srcSize.cy, options.onnxRenderHeight);
+
+		// 放大才有意义 / only worth doing when it actually reduces the size
+		if (dstWidth < (uint32_t)srcSize.cx || dstHeight < (uint32_t)srcSize.cy) {
+			_d3dDC = deviceResources.GetD3DDC();
+
+			_downscaledTex = DirectXHelper::CreateTexture2D(
+				deviceResources.GetD3DDevice(),
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				dstWidth,
+				dstHeight,
+				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS
+			);
+			if (!_downscaledTex) {
+				Logger::Get().Error("创建预降采样纹理失败 / failed to create the downscale texture");
+				return false;
+			}
+
+			_srcSrv = descriptorStore.GetShaderResourceView(*inOutTexture);
+			_downscaledUav = descriptorStore.GetUnorderedAccessView(_downscaledTex.get());
+			// 线性采样 = 双线性缩小 / linear sampling gives a bilinear downscale
+			_sampler = deviceResources.GetSampler(
+				D3D11_FILTER_MIN_MAG_MIP_LINEAR, D3D11_TEXTURE_ADDRESS_CLAMP);
+			if (!_srcSrv || !_downscaledUav || !_sampler) {
+				Logger::Get().Error("创建预降采样视图失败 / failed to create downscale views");
+				return false;
+			}
+
+			HRESULT hr = deviceResources.GetD3DDevice()->CreateComputeShader(
+				DownscaleCS, std::size(DownscaleCS), nullptr, _downscaleShader.put());
+			if (FAILED(hr)) {
+				Logger::Get().ComError("CreateComputeShader 失败", hr);
+				return false;
+			}
+
+			_downscaleDispatch = { (dstWidth + 7) / 8, (dstHeight + 7) / 8 };
+			backendInput = _downscaledTex.get();
+
+			Logger::Get().Info(fmt::format(
+				"ONNX pre-downscale: {}x{} -> {}x{} before inference",
+				srcSize.cx, srcSize.cy, dstWidth, dstHeight));
+		}
+	}
+
+	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, backendInput, inOutTexture)) {
 		return false;
 	}
 
@@ -144,6 +200,19 @@ bool OnnxEffectDrawer::Initialize(
 }
 
 void OnnxEffectDrawer::Draw(EffectsProfiler& /*profiler*/) const noexcept {
+	if (_downscaleShader) {
+		_d3dDC->CSSetShader(_downscaleShader.get(), nullptr, 0);
+		_d3dDC->CSSetShaderResources(0, 1, &_srcSrv);
+		_d3dDC->CSSetSamplers(0, 1, &_sampler);
+		_d3dDC->CSSetUnorderedAccessViews(0, 1, &_downscaledUav, nullptr);
+		_d3dDC->Dispatch(_downscaleDispatch.first, _downscaleDispatch.second, 1);
+
+		// 解绑 UAV，否则后续把它作为 SRV 绑定会失败
+		// Unbind, or binding it as an SRV afterwards silently fails.
+		ID3D11UnorderedAccessView* nullUav = nullptr;
+		_d3dDC->CSSetUnorderedAccessViews(0, 1, &nullUav, nullptr);
+	}
+
 	if (_inferenceBackend) {
 		_inferenceBackend->Evaluate();
 	}

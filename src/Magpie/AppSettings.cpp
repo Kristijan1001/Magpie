@@ -94,6 +94,10 @@ static void WriteProfile(rapidjson::PrettyWriter<rapidjson::StringBuffer>& write
 	writer.Uint(profile.onnxDynamicMaxWidth);
 	writer.Key("onnxDynamicMaxHeight");
 	writer.Uint(profile.onnxDynamicMaxHeight);
+	writer.Key("onnxRenderWidth");
+	writer.Uint(profile.onnxRenderWidth);
+	writer.Key("onnxRenderHeight");
+	writer.Uint(profile.onnxRenderHeight);
 	writer.Key("onnxDynamicMinWidth");
 	writer.Uint(profile.onnxDynamicMinWidth);
 	writer.Key("onnxDynamicMinHeight");
@@ -1014,6 +1018,14 @@ bool AppSettings::_LoadProfile(
 	JsonHelper::ReadUInt(profileObj, "onnxStaticEngine", profile.onnxStaticEngine);
 	JsonHelper::ReadUInt(profileObj, "onnxDynamicMaxWidth", profile.onnxDynamicMaxWidth);
 	JsonHelper::ReadUInt(profileObj, "onnxDynamicMaxHeight", profile.onnxDynamicMaxHeight);
+	JsonHelper::ReadUInt(profileObj, "onnxRenderWidth", profile.onnxRenderWidth);
+	JsonHelper::ReadUInt(profileObj, "onnxRenderHeight", profile.onnxRenderHeight);
+	if (profile.onnxRenderWidth > 16384) {
+		profile.onnxRenderWidth = 0;
+	}
+	if (profile.onnxRenderHeight > 16384) {
+		profile.onnxRenderHeight = 0;
+	}
 	JsonHelper::ReadUInt(profileObj, "onnxDynamicMinWidth", profile.onnxDynamicMinWidth);
 	JsonHelper::ReadUInt(profileObj, "onnxDynamicMinHeight", profile.onnxDynamicMinHeight);
 	if (profile.onnxScale < 1 || profile.onnxScale > 8) {

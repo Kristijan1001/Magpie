@@ -92,6 +92,12 @@ struct ProfileViewModel : ProfileViewModelT<ProfileViewModel>,
 	int OnnxDynamicMinHeight() const noexcept;
 	void OnnxDynamicMinHeight(int value);
 
+	int OnnxRenderWidth() const noexcept;
+	void OnnxRenderWidth(int value);
+
+	int OnnxRenderHeight() const noexcept;
+	void OnnxRenderHeight(int value);
+
 	int CaptureMethod() const noexcept;
 	void CaptureMethod(int value);
 

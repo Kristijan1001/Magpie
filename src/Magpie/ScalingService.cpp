@@ -364,6 +364,8 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 	options.onnxStaticEngine = profile.onnxStaticEngine;
 	options.onnxDynamicMaxWidth = profile.onnxDynamicMaxWidth;
 	options.onnxDynamicMaxHeight = profile.onnxDynamicMaxHeight;
+	options.onnxRenderWidth = profile.onnxRenderWidth;
+	options.onnxRenderHeight = profile.onnxRenderHeight;
 	options.onnxDynamicMinWidth = profile.onnxDynamicMinWidth;
 	options.onnxDynamicMinHeight = profile.onnxDynamicMinHeight;
 	if (profile.isFrameRateLimiterEnabled) {

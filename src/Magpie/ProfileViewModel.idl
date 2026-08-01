@@ -39,6 +39,8 @@ namespace Magpie {
 		Int32 OnnxDynamicMaxHeight;
 		Int32 OnnxDynamicMinWidth;
 		Int32 OnnxDynamicMinHeight;
+		Int32 OnnxRenderWidth;
+		Int32 OnnxRenderHeight;
 		Boolean IsCaptureMethodDesktopDuplication { get; };
 
 		Int32 AutoScale;
