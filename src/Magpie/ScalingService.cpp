@@ -358,6 +358,14 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 
 	options.graphicsCardId = profile.graphicsCardId;
 	options.captureMethod = profile.captureMethod;
+	options.onnxModel = profile.onnxModel;
+	options.onnxScale = profile.onnxScale;
+	options.onnxBackend = profile.onnxBackend;
+	options.onnxStaticEngine = profile.onnxStaticEngine;
+	options.onnxDynamicMaxWidth = profile.onnxDynamicMaxWidth;
+	options.onnxDynamicMaxHeight = profile.onnxDynamicMaxHeight;
+	options.onnxDynamicMinWidth = profile.onnxDynamicMinWidth;
+	options.onnxDynamicMinHeight = profile.onnxDynamicMinHeight;
 	if (profile.isFrameRateLimiterEnabled) {
 		options.maxFrameRate = profile.maxFrameRate;
 	}
