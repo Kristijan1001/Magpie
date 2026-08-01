@@ -54,6 +54,17 @@ static bool CheckComputeCapability(int deviceId) noexcept {
 	return true;
 }
 
+static std::wstring ModelStem(const wchar_t* modelPath) noexcept {
+	std::wstring stem(modelPath);
+	if (size_t slash = stem.find_last_of(L"\\\\/"); slash != std::wstring::npos) {
+		stem.erase(0, slash + 1);
+	}
+	if (size_t dot = stem.find_last_of(L'.'); dot != std::wstring::npos) {
+		stem.erase(dot);
+	}
+	return stem;
+}
+
 static std::wstring GetCacheDir(
 	const std::vector<uint8_t>& modelData,
 	const wchar_t* modelPath,
@@ -84,13 +95,7 @@ static std::wstring GetCacheDir(
 	std::wstring strHash = HashHelper::HexHash(std::span((const BYTE*)str.data(), str.size()));
 	// 目录名带上模型名和分辨率，便于识别 / name the folder after the model and the
 	// profile size so the cache is identifiable at a glance instead of a bare hash.
-	std::wstring stem(modelPath);
-	if (size_t slash = stem.find_last_of(L"\\\\/"); slash != std::wstring::npos) {
-		stem.erase(0, slash + 1);
-	}
-	if (size_t dot = stem.find_last_of(L'.'); dot != std::wstring::npos) {
-		stem.erase(dot);
-	}
+	const std::wstring stem = ModelStem(modelPath);
 
 	std::wstring dirName(stem);
 	dirName += L'_';
@@ -533,15 +538,73 @@ bool TensorRTInferenceBackend::_CreateSession(
 	uint32_t inputWidth,
 	uint32_t inputHeight
 ) {
-	// Size the profile to the whole virtual desktop rather than to this frame.
-	// TensorRT profiles are a RANGE (min..max), so one engine covers every window
-	// size up to the display. Following the input instead meant a separate engine
-	// per size - GetCacheDir hashes these shapes - which rebuilt constantly.
-	uint32_t profileWidth = (uint32_t)GetSystemMetrics(SM_CXVIRTUALSCREEN);
-	uint32_t profileHeight = (uint32_t)GetSystemMetrics(SM_CYVIRTUALSCREEN);
-	// Never smaller than the actual input, and keep it inside uint16_t.
-	profileWidth = std::clamp(std::max(profileWidth, inputWidth), 1u, 65535u);
-	profileHeight = std::clamp(std::max(profileHeight, inputHeight), 1u, 65535u);
+	// TensorRT profiles are a range (min..max): an engine built for 1440p serves
+	// any smaller window, but not a larger one. So round the input up to the next
+	// standard tier, and if a BIGGER engine for this model is already cached,
+	// reuse its dimensions so we get a cache hit instead of building again.
+	static constexpr uint32_t TIERS[][2] = {
+		{1280, 720}, {1920, 1080}, {2560, 1440}, {3200, 1800},
+		{3840, 2160}, {5120, 2880}, {7680, 4320}
+	};
+	uint32_t profileWidth = 0;
+	uint32_t profileHeight = 0;
+	for (const auto& tier : TIERS) {
+		if (tier[0] >= inputWidth && tier[1] >= inputHeight) {
+			profileWidth = tier[0];
+			profileHeight = tier[1];
+			break;
+		}
+	}
+	if (profileWidth == 0) {
+		profileWidth = std::min(inputWidth, 65535u);
+		profileHeight = std::min(inputHeight, 65535u);
+	}
+
+	{
+		// cache dir names are <stem>_<W>x<H>_<hash>
+		const std::wstring stem = ModelStem(modelPath);
+		const std::wstring pattern =
+			StrUtils::Concat(CommonSharedConstants::CACHE_DIR, L"tensorrt\\", stem, L"_*");
+		uint32_t bestW = 0;
+		uint32_t bestH = 0;
+		WIN32_FIND_DATAW fd{};
+		HANDLE hFind = FindFirstFileW(pattern.c_str(), &fd);
+		if (hFind != INVALID_HANDLE_VALUE) {
+			do {
+				if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+					continue;
+				}
+				const std::wstring name(fd.cFileName);
+				const size_t lastU = name.rfind(L'_');
+				if (lastU == std::wstring::npos || lastU == 0) {
+					continue;
+				}
+				const size_t prevU = name.rfind(L'_', lastU - 1);
+				if (prevU == std::wstring::npos) {
+					continue;
+				}
+				const std::wstring res = name.substr(prevU + 1, lastU - prevU - 1);
+				const size_t xPos = res.find(L'x');
+				if (xPos == std::wstring::npos) {
+					continue;
+				}
+				const uint32_t w = (uint32_t)_wtoi(res.substr(0, xPos).c_str());
+				const uint32_t h = (uint32_t)_wtoi(res.substr(xPos + 1).c_str());
+				if (w < inputWidth || h < inputHeight) {
+					continue;
+				}
+				if (bestW == 0 || (uint64_t)w * h < (uint64_t)bestW * bestH) {
+					bestW = w;
+					bestH = h;
+				}
+			} while (FindNextFileW(hFind, &fd));
+			FindClose(hFind);
+		}
+		if (bestW != 0) {
+			profileWidth = bestW;
+			profileHeight = bestH;
+		}
+	}
 
 	const std::pair<uint16_t, uint16_t> minShapes{ uint16_t(1), uint16_t(1) };
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
