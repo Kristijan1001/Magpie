@@ -31,6 +31,12 @@ namespace Magpie.App {
 		IVector<IInspectable> CaptureMethods { get; };
 		Int32 CaptureMethod;
 
+		IVector<IInspectable> OnnxModels { get; };
+		Int32 OnnxModel;
+		IVector<IInspectable> OnnxBackends { get; };
+		Int32 OnnxBackend;
+		Int32 OnnxScale;
+
 		Boolean IsAutoScale;
 		Boolean Is3DGameMode;
 
