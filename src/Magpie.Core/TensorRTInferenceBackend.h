@@ -32,7 +32,9 @@ private:
 		const wchar_t* modelPath,
 		uint32_t inputWidth,
 		uint32_t inputHeight,
-		bool staticEngine
+		bool staticEngine,
+		uint32_t dynamicMaxWidth,
+		uint32_t dynamicMaxHeight
 	);
 
 	Ort::Env _env{ nullptr };
