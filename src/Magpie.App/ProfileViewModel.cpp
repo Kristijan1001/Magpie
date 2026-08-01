@@ -564,6 +564,21 @@ void ProfileViewModel::OnnxScale(int value) {
 	AppSettings::Get().Save();
 }
 
+bool ProfileViewModel::OnnxStaticEngine() const noexcept {
+	return _data->onnxStaticEngine != 0;
+}
+
+void ProfileViewModel::OnnxStaticEngine(bool value) {
+	if ((_data->onnxStaticEngine != 0) == value) {
+		return;
+	}
+
+	_data->onnxStaticEngine = value ? 1u : 0u;
+	RaisePropertyChanged(L"OnnxStaticEngine");
+
+	AppSettings::Get().Save();
+}
+
 bool ProfileViewModel::IsAutoScale() const noexcept {
 	return _data->isAutoScale;
 }
