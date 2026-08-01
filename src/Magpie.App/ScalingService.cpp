@@ -253,6 +253,7 @@ bool ScalingService::_StartScale(HWND hWnd, const Profile& profile) {
 	options.onnxModel = profile.onnxModel;
 	options.onnxScale = profile.onnxScale;
 	options.onnxBackend = profile.onnxBackend;
+	options.onnxStaticEngine = profile.onnxStaticEngine;
 	if (profile.isFrameRateLimiterEnabled) {
 		options.maxFrameRate = profile.maxFrameRate;
 	}
