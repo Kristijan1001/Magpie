@@ -79,6 +79,12 @@ static void WriteProfile(rapidjson::PrettyWriter<rapidjson::StringBuffer>& write
 
 	writer.Key("scalingMode");
 	writer.Int(profile.scalingMode);
+	writer.Key("onnxModel");
+	writer.String(StrUtils::UTF16ToUTF8(profile.onnxModel).c_str());
+	writer.Key("onnxScale");
+	writer.Uint(profile.onnxScale);
+	writer.Key("onnxBackend");
+	writer.Uint(profile.onnxBackend);
 	writer.Key("captureMethod");
 	writer.Uint((uint32_t)profile.captureMethod);
 	writer.Key("multiMonitorUsage");
@@ -775,6 +781,16 @@ bool AppSettings::_LoadProfile(
 	JsonHelper::ReadInt(profileObj, "scalingMode", profile.scalingMode);
 	if (profile.scalingMode < -1 || profile.scalingMode >= _scalingModes.size()) {
 		profile.scalingMode = -1;
+	}
+
+	JsonHelper::ReadString(profileObj, "onnxModel", profile.onnxModel);
+	JsonHelper::ReadUInt(profileObj, "onnxScale", profile.onnxScale);
+	JsonHelper::ReadUInt(profileObj, "onnxBackend", profile.onnxBackend);
+	if (profile.onnxScale < 1 || profile.onnxScale > 8) {
+		profile.onnxScale = 2;
+	}
+	if (profile.onnxBackend > 1) {
+		profile.onnxBackend = 0;
 	}
 
 	{
