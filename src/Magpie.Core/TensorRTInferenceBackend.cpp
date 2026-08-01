@@ -12,6 +12,8 @@
 #include "HashHelper.h"
 #include "Win32Utils.h"
 #include "StrUtils.h"
+#include "ScalingWindow.h"
+#include "ScalingOptions.h"
 #include "CommonSharedConstants.h"
 
 #pragma warning(push)
@@ -233,7 +235,8 @@ bool TensorRTInferenceBackend::Initialize(
 		Ort::ThrowOnError(ortApi.AddFreeDimensionOverride(sessionOptions, "DATA_BATCH", 1));
 
 		if (!_CreateSession(deviceResources, deviceId, sessionOptions, modelPath,
-			uint32_t(inputSize.cx), uint32_t(inputSize.cy))) {
+			uint32_t(inputSize.cx), uint32_t(inputSize.cy),
+			ScalingWindow::Get().Options().onnxStaticEngine != 0)) {
 			Logger::Get().Error("_CreateSession 失败");
 			return false;
 		}
@@ -536,7 +539,8 @@ bool TensorRTInferenceBackend::_CreateSession(
 	Ort::SessionOptions& sessionOptions,
 	const wchar_t* modelPath,
 	uint32_t inputWidth,
-	uint32_t inputHeight
+	uint32_t inputHeight,
+	bool staticEngine
 ) {
 	// TensorRT profiles are a range (min..max): an engine built for 1440p serves
 	// any smaller window, but not a larger one. So round the input up to the next
@@ -606,7 +610,18 @@ bool TensorRTInferenceBackend::_CreateSession(
 		}
 	}
 
-	const std::pair<uint16_t, uint16_t> minShapes{ uint16_t(1), uint16_t(1) };
+	if (staticEngine) {
+		// 静态引擎：min=opt=max，最快但只适用于该分辨率
+		// Static: min=opt=max. Fastest, because TensorRT tunes kernels for this
+		// exact size - but the engine is only valid at it, so each new window
+		// size builds its own.
+		profileWidth = std::min(inputWidth, 65535u);
+		profileHeight = std::min(inputHeight, 65535u);
+	}
+
+	const std::pair<uint16_t, uint16_t> minShapes = staticEngine
+		? std::pair<uint16_t, uint16_t>{ uint16_t(profileWidth), uint16_t(profileHeight) }
+		: std::pair<uint16_t, uint16_t>{ uint16_t(1), uint16_t(1) };
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 
