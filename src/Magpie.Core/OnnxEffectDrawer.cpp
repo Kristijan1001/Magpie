@@ -66,6 +66,14 @@ bool OnnxEffectDrawer::Initialize(
 ) noexcept {
 	const wchar_t* jsonPath = L"model.json";
 	if (!Win32Utils::FileExists(jsonPath)) {
+		// Relative path -> resolved against the working directory, not the exe
+		// folder. Launched with the wrong cwd this silently disables ONNX, so
+		// name the directory we actually looked in.
+		wchar_t cwd[MAX_PATH]{};
+		GetCurrentDirectoryW(MAX_PATH, cwd);
+		Logger::Get().Info(StrUtils::Concat(
+			"model.json not found in ", StrUtils::UTF16ToUTF8(cwd),
+			" - ONNX upscaling disabled for this scale"));
 		return true;
 	}
 	
@@ -82,7 +90,10 @@ bool OnnxEffectDrawer::Initialize(
 		rapidjson::Document doc;
 		doc.ParseInsitu(json.data());
 		if (doc.HasParseError()) {
-			Logger::Get().Error("解析 json 失败");
+			Logger::Get().Error(fmt::format(
+				"解析 json 失败 / model.json is not valid JSON (error {} at offset {}). "
+				"A UTF-8 BOM is the usual cause - save it as UTF-8 without BOM.",
+				uint32_t(doc.GetParseError()), doc.GetErrorOffset()));
 			return false;
 		}
 		
@@ -98,9 +109,14 @@ bool OnnxEffectDrawer::Initialize(
 	} else if (backend == "tensorrt" || backend == "trt" || backend == "t") {
 		_inferenceBackend = std::make_unique<TensorRTInferenceBackend>();
 	} else {
-		Logger::Get().Error("未知 backend");
+		Logger::Get().Error(StrUtils::Concat(
+			"未知 backend '", backend,
+			"' - expected one of: directml|dml|d, tensorrt|trt|t"));
 		return false;
 	}
+
+	Logger::Get().Info(fmt::format(
+		"ONNX model: path='{}' scale=x{} backend={}", modelPath, scale, backend));
 
 	std::wstring modelPathW = StrUtils::UTF8ToUTF16(modelPath);
 	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, *inOutTexture, inOutTexture)) {
