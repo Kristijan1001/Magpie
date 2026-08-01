@@ -83,7 +83,7 @@ static void WriteProfile(rapidjson::PrettyWriter<rapidjson::StringBuffer>& write
 	writer.Key("scalingMode");
 	writer.Int(profile.scalingMode);
 	writer.Key("onnxModel");
-	writer.String(StrUtils::UTF16ToUTF8(profile.onnxModel).c_str());
+	writer.String(StrHelper::UTF16ToUTF8(profile.onnxModel).c_str());
 	writer.Key("onnxScale");
 	writer.Uint(profile.onnxScale);
 	writer.Key("onnxBackend");
