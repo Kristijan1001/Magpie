@@ -111,6 +111,14 @@ struct ScalingOptions {
 
 	DuplicateFrameDetectionMode duplicateFrameDetectionMode = DuplicateFrameDetectionMode::Dynamic;
 
+	// ONNX 模型，相对于工作目录。为空则回退到 model.json
+	// ONNX model, relative to the working dir. Empty falls back to model.json.
+	std::wstring onnxModel;
+	// 必须和模型匹配 / must match the model, integer only
+	uint32_t onnxScale = 2;
+	// 0 = DirectML, 1 = TensorRT
+	uint32_t onnxBackend = 0;
+
 	void Log() const noexcept;
 };
 
