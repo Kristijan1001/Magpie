@@ -69,6 +69,23 @@ struct ProfileViewModel : ProfileViewModelT<ProfileViewModel>,
 	int CaptureMethod() const noexcept;
 	void CaptureMethod(int value);
 
+	IVector<IInspectable> OnnxModels() const noexcept {
+		return _onnxModels;
+	}
+
+	int OnnxModel() const noexcept;
+	void OnnxModel(int value);
+
+	IVector<IInspectable> OnnxBackends() const noexcept {
+		return _onnxBackends;
+	}
+
+	int OnnxBackend() const noexcept;
+	void OnnxBackend(int value);
+
+	int OnnxScale() const noexcept;
+	void OnnxScale(int value);
+
 	bool IsAutoScale() const noexcept;
 	void IsAutoScale(bool value);
 
@@ -150,6 +167,11 @@ private:
 
 	IVector<IInspectable> _scalingModes{ nullptr };
 	IVector<IInspectable> _captureMethods{ nullptr };
+	IVector<IInspectable> _onnxModels{ nullptr };
+	IVector<IInspectable> _onnxBackends{ nullptr };
+	// 与 _onnxModels 一一对应，索引 0 为空（禁用）
+	// Parallel to _onnxModels; index 0 is empty (disabled).
+	std::vector<std::wstring> _onnxModelPaths;
 	SmallVector<std::wstring> _graphicsCards;
 
 	uint32_t _index = 0;
