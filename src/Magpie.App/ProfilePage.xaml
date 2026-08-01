@@ -223,6 +223,22 @@
 						                SpinButtonPlacementMode="Compact" />
 					</local:SimpleStackPanel>
 				</local:SettingsCard>
+				<local:SettingsCard Header="Dynamic engine min size"
+				                    Description="Smallest window a dynamic engine must cover. 0 = 1x1. A tighter range can be faster, but the engine rejects anything below it.">
+					<local:SimpleStackPanel Orientation="Horizontal"
+					                        Spacing="8">
+						<muxc:NumberBox Value="{x:Bind ViewModel.OnnxDynamicMinWidth, Mode=TwoWay}"
+						                Minimum="0"
+						                Maximum="16384"
+						                SmallChange="64"
+						                SpinButtonPlacementMode="Compact" />
+						<muxc:NumberBox Value="{x:Bind ViewModel.OnnxDynamicMinHeight, Mode=TwoWay}"
+						                Minimum="0"
+						                Maximum="16384"
+						                SmallChange="64"
+						                SpinButtonPlacementMode="Compact" />
+					</local:SimpleStackPanel>
+				</local:SettingsCard>
 				<local:SettingsCard x:Name="AutoScaleSettingsCard"
 				                    x:Uid="Profile_General_AutoScale"
 				                    x:Load="{x:Bind ViewModel.IsNotDefaultProfile, Mode=OneTime}">
