@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "DirectMLInferenceBackend.h"
+#include "OnnxHelper.h"
 #include "DeviceResources.h"
 #include "DirectXHelper.h"
 #include "shaders/TensorToTextureCS.h"
