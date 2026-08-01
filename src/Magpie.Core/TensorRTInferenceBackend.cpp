@@ -613,12 +613,28 @@ bool TensorRTInferenceBackend::_CreateSession(
 	sessionOptions.AppendExecutionProvider_TensorRT_V2(*trtOptions.get());
 	sessionOptions.AppendExecutionProvider_CUDA_V2(*cudaOptions.get());
 
-	if (Win32Utils::FileExists(cacheCtxPath.c_str())) {
+	// Building an engine blocks this thread for minutes with no other feedback,
+	// which is indistinguishable from a hang. Say so explicitly, and time both
+	// paths so a cache hit vs a rebuild is obvious after the fact.
+	const bool engineCached = Win32Utils::FileExists(cacheCtxPath.c_str());
+	Logger::Get().Info(fmt::format(
+		"TensorRT session: input {}x{}, profile {}x{}, fp16={}, optLevel={}, engine cache {}",
+		inputWidth, inputHeight, profileWidth, profileHeight,
+		enableFP16, uint32_t(optimizationLevel), engineCached ? "HIT" : "MISS"));
+
+	const uint64_t startTick = GetTickCount64();
+	if (engineCached) {
 		Logger::Get().Info("读取缓存 " + StrUtils::UTF16ToUTF8(cacheCtxPath));
 		_session = Ort::Session(_env, cacheCtxPath.c_str(), sessionOptions);
 	} else {
+		Logger::Get().Info(
+			"No cached TensorRT engine for this model at this resolution. Building one "
+			"now - this takes minutes and Magpie will appear frozen until it finishes. "
+			"Avoid GPU-heavy work meanwhile. It is cached afterwards and reused.");
 		_session = Ort::Session(_env, modelData.data(), modelData.size(), sessionOptions);
 	}
+	Logger::Get().Info(fmt::format("TensorRT engine {} in {} ms",
+		engineCached ? "loaded from cache" : "BUILT", GetTickCount64() - startTick));
 
 	return true;
 }
