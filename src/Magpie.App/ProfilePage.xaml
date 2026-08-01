@@ -203,6 +203,10 @@
 					                SmallChange="1"
 					                SpinButtonPlacementMode="Compact" />
 				</local:SettingsCard>
+				<local:SettingsCard Header="Static AI engine (TensorRT)"
+				                    Description="On: fastest, but a separate engine is built for every window size. Off: one engine is reused for that size and smaller.">
+					<ToggleSwitch IsOn="{x:Bind ViewModel.OnnxStaticEngine, Mode=TwoWay}" />
+				</local:SettingsCard>
 				<local:SettingsCard x:Name="AutoScaleSettingsCard"
 				                    x:Uid="Profile_General_AutoScale"
 				                    x:Load="{x:Bind ViewModel.IsNotDefaultProfile, Mode=OneTime}">
