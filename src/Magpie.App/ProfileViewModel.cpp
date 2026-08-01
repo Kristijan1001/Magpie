@@ -568,6 +568,36 @@ bool ProfileViewModel::OnnxStaticEngine() const noexcept {
 	return _data->onnxStaticEngine != 0;
 }
 
+int ProfileViewModel::OnnxDynamicMinWidth() const noexcept {
+	return (int)_data->onnxDynamicMinWidth;
+}
+
+void ProfileViewModel::OnnxDynamicMinWidth(int value) {
+	if (value < 0 || value > 16384 || (int)_data->onnxDynamicMinWidth == value) {
+		return;
+	}
+
+	_data->onnxDynamicMinWidth = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxDynamicMinWidth");
+
+	AppSettings::Get().Save();
+}
+
+int ProfileViewModel::OnnxDynamicMinHeight() const noexcept {
+	return (int)_data->onnxDynamicMinHeight;
+}
+
+void ProfileViewModel::OnnxDynamicMinHeight(int value) {
+	if (value < 0 || value > 16384 || (int)_data->onnxDynamicMinHeight == value) {
+		return;
+	}
+
+	_data->onnxDynamicMinHeight = (uint32_t)value;
+	RaisePropertyChanged(L"OnnxDynamicMinHeight");
+
+	AppSettings::Get().Save();
+}
+
 int ProfileViewModel::OnnxDynamicMaxWidth() const noexcept {
 	return (int)_data->onnxDynamicMaxWidth;
 }
