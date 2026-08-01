@@ -514,9 +514,20 @@ bool TensorRTInferenceBackend::_CreateSession(
 	uint32_t inputWidth,
 	uint32_t inputHeight
 ) {
+	// The engine profile has to cover the input, but GetCacheDir hashes these
+	// shapes - so using the raw size would mint a brand new engine for every
+	// one-pixel window change (borders, DPI rounding) and rebuild constantly.
+	// Round up to a 64px grid instead: a handful of engines cover every window
+	// size, and the extra profile headroom costs at most 63px per dimension.
+	// The cache is keyed per model as well, so engines for other models are
+	// never invalidated - nothing here ever deletes a cache entry.
+	constexpr uint32_t PROFILE_GRID = 64;
+	const uint32_t profileWidth = (inputWidth + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
+	const uint32_t profileHeight = (inputHeight + PROFILE_GRID - 1) / PROFILE_GRID * PROFILE_GRID;
+
 	const std::pair<uint16_t, uint16_t> minShapes(uint16_t(1), uint16_t(1));
-	const std::pair<uint16_t, uint16_t> maxShapes(uint16_t(inputWidth), uint16_t(inputHeight));
-	const std::pair<uint16_t, uint16_t> optShapes(uint16_t(inputWidth), uint16_t(inputHeight));
+	const std::pair<uint16_t, uint16_t> maxShapes(uint16_t(profileWidth), uint16_t(profileHeight));
+	const std::pair<uint16_t, uint16_t> optShapes(uint16_t(profileWidth), uint16_t(profileHeight));
 
 	const bool enableFP16 = true;
 	const uint8_t optimizationLevel = 5;
