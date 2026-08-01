@@ -37,6 +37,8 @@ namespace Magpie.App {
 		Int32 OnnxBackend;
 		Int32 OnnxScale;
 		Boolean OnnxStaticEngine;
+		Int32 OnnxDynamicMaxWidth;
+		Int32 OnnxDynamicMaxHeight;
 
 		Boolean IsAutoScale;
 		Boolean Is3DGameMode;
