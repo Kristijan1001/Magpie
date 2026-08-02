@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "OnnxRuntimeService.h"
+#include "App.h"
 #include "Logger.h"
 #include "StrHelper.h"
 #include "Win32Helper.h"
@@ -87,13 +88,9 @@ fire_and_forget OnnxRuntimeService::DownloadAndInstall() {
 
 	_cancelled = false;
 	_downloadProgress = 0;
-	_Status(OnnxRuntimeStatus::Downloading);
 
-	// 捕获到局部，协程恢复后 this 仍然有效（单例），但目录字符串要在切线程前算好
 	const std::wstring thirdPartyDir = _ThirdPartyDir();
 	const std::wstring archivePath = thirdPartyDir + L"\\ext-runtime.7z";
-
-	co_await resume_background();
 
 	if (!Win32Helper::DirExists(thirdPartyDir.c_str()) &&
 		!Win32Helper::CreateDir(thirdPartyDir, true)) {
@@ -101,6 +98,19 @@ fire_and_forget OnnxRuntimeService::DownloadAndInstall() {
 		_Status(OnnxRuntimeStatus::Error);
 		co_return;
 	}
+
+	_Status(OnnxRuntimeStatus::Downloading);
+
+	// 下载留在 UI 线程：WinRT 的异步等待会回到同一个上下文，而状态事件最终
+	// 会触碰 XAML，从线程池线程触发会抛 "marshalled for a different thread"。
+	// 只有阻塞的解压切到后台，并且在报告状态前切回来。
+	//
+	// The download stays on the UI thread: the awaits below resume on the same
+	// context, and the status events end up touching XAML, so firing them from
+	// a thread-pool thread throws. Only the blocking extract goes to the
+	// background, and every exit path returns here before reporting.
+	bool ok = false;
+	bool cancelled = false;
 
 	try {
 		HttpClient httpClient;
@@ -115,98 +125,115 @@ fire_and_forget OnnxRuntimeService::DownloadAndInstall() {
 
 		IInputStream httpStream = co_await requestProgressOp;
 
+		bool downloaded = false;
 		{
 			wil::unique_hfile file(
 				CreateFile2(archivePath.c_str(), GENERIC_WRITE, 0, CREATE_ALWAYS, nullptr));
 			if (!file) {
 				Logger::Get().Win32Error("创建下载文件失败");
-				_Status(OnnxRuntimeStatus::Error);
-				co_return;
-			}
+			} else {
+				Buffer buffer(64 * 1024);
+				// 这个包接近 1 GB，必须用 64 位计数
+				// The package is close to 1 GB, so the counter has to be 64-bit.
+				uint64_t bytesReceived = 0;
+				bool failed = false;
 
-			Buffer buffer(64 * 1024);
-			// 这个包接近 1 GB，必须用 64 位计数
-			// The package is close to 1 GB, so the counter has to be 64-bit.
-			uint64_t bytesReceived = 0;
+				while (true) {
+					IBuffer resultBuffer = co_await httpStream.ReadAsync(
+						buffer, buffer.Capacity(), InputStreamOptions::Partial);
 
-			while (true) {
-				IBuffer resultBuffer = co_await httpStream.ReadAsync(
-					buffer, buffer.Capacity(), InputStreamOptions::Partial);
+					if (_cancelled) {
+						httpStream.Close();
+						cancelled = true;
+						break;
+					}
 
-				if (_cancelled) {
-					httpStream.Close();
-					file.reset();
-					DeleteFile(archivePath.c_str());
-					_Status(OnnxRuntimeStatus::NotInstalled);
-					co_return;
-				}
+					const uint32_t bufferSize = resultBuffer.Length();
+					if (bufferSize == 0) {
+						break;
+					}
 
-				const uint32_t bufferSize = resultBuffer.Length();
-				if (bufferSize == 0) {
-					break;
-				}
+					if (!WriteFile(file.get(), resultBuffer.data(), bufferSize, nullptr, nullptr)) {
+						Logger::Get().Win32Error("WriteFile 失败");
+						failed = true;
+						break;
+					}
 
-				if (!WriteFile(file.get(), resultBuffer.data(), bufferSize, nullptr, nullptr)) {
-					Logger::Get().Win32Error("WriteFile 失败");
-					_Status(OnnxRuntimeStatus::Error);
-					co_return;
-				}
-
-				if (totalBytes > 0) {
 					bytesReceived += bufferSize;
-					_downloadProgress = bytesReceived / (double)totalBytes;
-					DownloadProgressChanged.Invoke(_downloadProgress);
+					if (totalBytes > 0) {
+						_downloadProgress = bytesReceived / (double)totalBytes;
+						DownloadProgressChanged.Invoke(_downloadProgress);
+					}
 				}
+
+				downloaded = !failed && !cancelled;
 			}
 		}
 
-		_Status(OnnxRuntimeStatus::Extracting);
+		if (cancelled) {
+			DeleteFile(archivePath.c_str());
+		} else if (downloaded) {
+			_Status(OnnxRuntimeStatus::Extracting);
 
-		const bool extracted = _Extract(archivePath, thirdPartyDir);
-		DeleteFile(archivePath.c_str());
+			// 解压会阻塞（WaitForSingleObject），必须切到后台
+			// Extraction blocks on WaitForSingleObject, so it leaves the UI
+			// thread here and returns below before anything is reported.
+			co_await resume_background();
 
-		if (!extracted) {
-			_Status(OnnxRuntimeStatus::Error);
-			co_return;
-		}
+			if (_Extract(archivePath, thirdPartyDir)) {
+				// 解压出来的可能是一层子目录，onnxruntime.dll 必须落在 third_party\ 下
+				// The archive may unpack into a subdirectory; onnxruntime.dll has
+				// to end up directly in third_party\ or PinThirdPartyRuntimes
+				// will not find it.
+				if (!IsInstalled()) {
+					std::error_code ec;
+					for (const auto& entry :
+						std::filesystem::directory_iterator(thirdPartyDir, ec)) {
+						if (!entry.is_directory(ec)) {
+							continue;
+						}
 
-		// 解压出来的可能是一层子目录，onnxruntime.dll 必须落在 third_party\ 下
-		// The archive may unpack into a subdirectory; onnxruntime.dll has to end
-		// up directly in third_party\ or PinThirdPartyRuntimes will not find it.
-		if (!IsInstalled()) {
-			for (const auto& entry : std::filesystem::directory_iterator(thirdPartyDir)) {
-				if (!entry.is_directory()) {
-					continue;
+						const std::wstring inner = entry.path().wstring() + L"\\onnxruntime.dll";
+						if (!Win32Helper::FileExists(inner.c_str())) {
+							continue;
+						}
+
+						for (const auto& f :
+							std::filesystem::directory_iterator(entry.path(), ec)) {
+							std::filesystem::rename(f.path(),
+								std::filesystem::path(thirdPartyDir) / f.path().filename(), ec);
+						}
+						std::filesystem::remove_all(entry.path(), ec);
+						break;
+					}
 				}
 
-				const std::wstring inner = entry.path().wstring() + L"\\onnxruntime.dll";
-				if (!Win32Helper::FileExists(inner.c_str())) {
-					continue;
+				ok = IsInstalled();
+				if (!ok) {
+					Logger::Get().Error("解压后仍找不到 onnxruntime.dll");
 				}
-
-				std::error_code ec;
-				for (const auto& f : std::filesystem::directory_iterator(entry.path(), ec)) {
-					std::filesystem::rename(
-						f.path(), std::filesystem::path(thirdPartyDir) / f.path().filename(), ec);
-				}
-				std::filesystem::remove_all(entry.path(), ec);
-				break;
 			}
-		}
 
-		if (!IsInstalled()) {
-			Logger::Get().Error("解压后仍找不到 onnxruntime.dll");
-			_Status(OnnxRuntimeStatus::Error);
-			co_return;
+			DeleteFile(archivePath.c_str());
 		}
-
-		_Status(OnnxRuntimeStatus::Installed);
 	} catch (const hresult_error& e) {
 		Logger::Get().Error(StrHelper::Concat(
 			"下载运行时失败 / failed to download the runtime: ",
 			StrHelper::UTF16ToUTF8(e.message())));
 		DeleteFile(archivePath.c_str());
-		_Status(OnnxRuntimeStatus::Error);
+	}
+
+	// 可能仍在后台线程上（解压途中失败或抛异常），报告状态前必须切回
+	// May still be on a background thread if the extract failed or threw, so
+	// come back before touching anything the UI is bound to. Harmless when we
+	// are already on the UI thread.
+	co_await App::Get().Dispatcher();
+
+	if (cancelled) {
+		_downloadProgress = 0;
+		_Status(OnnxRuntimeStatus::NotInstalled);
+	} else {
+		_Status(ok ? OnnxRuntimeStatus::Installed : OnnxRuntimeStatus::Error);
 	}
 }
 
