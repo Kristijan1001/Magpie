@@ -72,6 +72,19 @@ bool OnnxEffectDrawer::Initialize(
 	BackendDescriptorStore& descriptorStore,
 	ID3D11Texture2D** inOutTexture
 ) noexcept {
+	// 可能被重复调用（_BuildEffects 和 _ResizeEffects），先彻底重置
+	// Called from both _BuildEffects and _ResizeEffects, so wipe any previous
+	// session first. Destroy the backend before anything else: it owns CUDA
+	// external memory and semaphores tied to the old textures.
+	_inferenceBackend.reset();
+	_downscaleShader = nullptr;
+	_downscaledTex = nullptr;
+	_downscaledUav = nullptr;
+	_srcSrv = nullptr;
+	_sampler = nullptr;
+	_d3dDC = nullptr;
+	_downscaleDispatch = {};
+
 	std::string modelPath;
 	uint32_t scale = 1;
 	std::string backend;

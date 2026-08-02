@@ -15,6 +15,7 @@
 
 
 #include "pch.h"
+#include "StrHelper.h"
 #include "App.h"
 #include "Win32Helper.h"
 #include "TouchHelper.h"
@@ -36,6 +37,25 @@ static void SetWorkingDir() noexcept {
 	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	const std::wstring thirdPartyDir = (exeDir / L"third_party").wstring();
 	AddDllDirectory(thirdPartyDir.c_str());
+
+	// Windows 自带 onnxruntime.dll（System32），且它的搜索顺序在
+	// AddDllDirectory 之前，因此必须用绝对路径先加载我们自己的副本。
+	//
+	// System32 holds the OS copy of ONNX Runtime and is searched before any
+	// AddDllDirectory path, so an unqualified load binds that one. Built
+	// against newer headers, GetApi(ORT_API_VERSION) then returns nullptr and
+	// the first Ort call dereferences null. Pin ours by absolute path; later
+	// resolutions of the same name reuse this module.
+	for (const wchar_t* dllName : { L"onnxruntime.dll", L"DirectML.dll" }) {
+		const std::wstring dllPath = thirdPartyDir + L"\\" + dllName;
+		if (!LoadLibraryEx(dllPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
+			LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR)) {
+			// 不致命：没有 ONNX 时缩放仍可工作
+			// Not fatal - scaling still works without ONNX.
+			Logger::Get().Win32Error(StrHelper::Concat(
+				"加载失败 / failed to preload ", StrHelper::UTF16ToUTF8(dllPath)));
+		}
+	}
 }
 
 static void InitializeLogger(const wchar_t* logFilePath) noexcept {
