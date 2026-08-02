@@ -8,6 +8,10 @@
 #include <winrt/Windows.Web.Http.h>
 
 using namespace winrt;
+// App 在 winrt::Magpie::implementation 里，而本文件位于 namespace Magpie
+// App lives in winrt::Magpie::implementation; this file is in namespace Magpie,
+// so without this the name resolves to Magpie::App and does not exist.
+using namespace winrt::Magpie::implementation;
 using namespace Windows::Storage::Streams;
 using namespace Windows::Web::Http;
 
