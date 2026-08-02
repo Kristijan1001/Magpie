@@ -10,6 +10,8 @@
 #include "LocalizationService.h"
 #include "OnnxRuntimeService.h"
 #include "Win32Helper.h"
+// WIN32_LEAN_AND_MEAN 排除了 shellapi.h / excluded by WIN32_LEAN_AND_MEAN
+#include <shellapi.h>
 
 using namespace Magpie;
 
