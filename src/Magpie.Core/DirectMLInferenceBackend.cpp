@@ -6,6 +6,7 @@
 #include "shaders/TensorToTextureCS.h"
 #include "shaders/TextureToTensorCS.h"
 #include "Logger.h"
+#include "OnnxStatus.h"
 #include <onnxruntime/core/providers/dml/dml_provider_factory.h>
 #include "Win32Helper.h"
 
@@ -155,7 +156,23 @@ bool DirectMLInferenceBackend::Initialize(
 		_env = Ort::Env(ORT_LOGGING_LEVEL_INFO, "", _OrtLog, nullptr);
 
 		const OrtDmlApi* ortDmlApi = nullptr;
-		ortApi.GetExecutionProviderApi("DML", ORT_API_VERSION, (const void**)&ortDmlApi);
+		// 必须检查返回值：运行库没有 DirectML EP 时 ortDmlApi 会保持为空
+		// The status must be checked - without the DirectML EP in the runtime,
+		// ortDmlApi stays null and the call below would dereference it.
+		// Microsoft's prebuilt packages split the providers: the GPU build ships
+		// CUDA and TensorRT but no DirectML.
+		Ort::ThrowOnError(ortApi.GetExecutionProviderApi(
+			"DML", ORT_API_VERSION, (const void**)&ortDmlApi));
+		if (!ortDmlApi) {
+			Logger::Get().Error(
+				"DirectML EP 不可用 / the DirectML execution provider is not present "
+				"in third_party\\onnxruntime.dll - use the TensorRT backend, or "
+				"replace it with an onnxruntime build that includes DirectML.");
+			OnnxStatus::Report(L"DirectML unavailable",
+				L"This onnxruntime build has no DirectML provider. Switch the "
+				L"backend to TensorRT.");
+			return false;
+		}
 
 		Ort::SessionOptions sessionOptions;
 		sessionOptions.SetIntraOpNumThreads(1);
