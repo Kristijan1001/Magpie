@@ -207,19 +207,29 @@ bool OnnxEffectDrawer::Initialize(
 	}
 
 	if (!_inferenceBackend->Initialize(modelPathW.c_str(), scale, deviceResources, descriptorStore, backendInput, inOutTexture)) {
-		// 不要留下半初始化的后端，否则 Draw 会继续调用它
-		// Do not leave a half-initialized backend behind - Draw would keep
-		// calling into it.
+		// 不要留下半初始化的后端，也不要留下预降采样状态
+		// Drop the half-initialized backend and the pre-downscale state, or Draw
+		// keeps calling into them.
 		_inferenceBackend.reset();
+		_downscaleShader = nullptr;
+		_downscaledTex = nullptr;
+		_downscaledUav = nullptr;
+		_srcSrv = nullptr;
+		_sampler = nullptr;
+		_d3dDC = nullptr;
 
 		Logger::Get().Error(
 			"初始化推理后端失败 / inference backend failed to initialize. Usual "
 			"causes: the scale does not match the model, or the model is not a "
 			"supported [-1,3,-1,-1] NCHW fp16/fp32 upscaler.");
 		OnnxStatus::Report(L"AI upscaling failed",
-			L"The model could not be initialized. Check that the scale matches the "
-			L"model, then see logs\\magpie.log.");
-		return false;
+			L"The model could not be initialized, so scaling continues without it. "
+			L"Check that the scale matches the model, then see logs\\magpie.log.");
+
+		// 继续缩放，只是不带 AI —— 比整个缩放失败要好
+		// Carry on scaling without the model: losing the AI pass beats losing
+		// the ability to scale at all.
+		return true;
 	}
 
 	return true;
