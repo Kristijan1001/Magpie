@@ -164,14 +164,30 @@ bool OnnxEffectDrawer::Initialize(
 	// 预降采样：模型在更低分辨率上运行，然后由它放大回去
 	// Pre-downscale: run the model at a lower resolution and let it scale back
 	// up. Without this a native-resolution window has nothing to upscale.
-	ID3D11Texture2D* backendInput = *inOutTexture;
-	if (onnxOptions.onnxRenderWidth != 0 && onnxOptions.onnxRenderHeight != 0) {
-		const SIZE srcSize = OnnxHelper::GetTextureSize(*inOutTexture);
-		const uint32_t dstWidth = std::min((uint32_t)srcSize.cx, onnxOptions.onnxRenderWidth);
-		const uint32_t dstHeight = std::min((uint32_t)srcSize.cy, onnxOptions.onnxRenderHeight);
+	// 部分模型（如 Real-CUGAN）要求输入尺寸对齐，否则输出不是整数倍
+	// Some models - Real-CUGAN among them - only produce an exact integer scale
+	// when the input dimensions are aligned; odd sizes fail outright. Magpie
+	// feeds arbitrary window sizes, which is why CUGAN was considered
+	// unsupported. Rounding the model's input down to a multiple of 4 costs at
+	// most 3 px and reuses the pre-downscale pass, so there is no extra work.
+	constexpr uint32_t ONNX_INPUT_ALIGN = 4;
 
-		// 放大才有意义 / only worth doing when it actually reduces the size
-		if (dstWidth < (uint32_t)srcSize.cx || dstHeight < (uint32_t)srcSize.cy) {
+	ID3D11Texture2D* backendInput = *inOutTexture;
+	{
+		const SIZE srcSize = OnnxHelper::GetTextureSize(*inOutTexture);
+
+		uint32_t dstWidth = (uint32_t)srcSize.cx;
+		uint32_t dstHeight = (uint32_t)srcSize.cy;
+		if (onnxOptions.onnxRenderWidth != 0 && onnxOptions.onnxRenderHeight != 0) {
+			dstWidth = std::min(dstWidth, onnxOptions.onnxRenderWidth);
+			dstHeight = std::min(dstHeight, onnxOptions.onnxRenderHeight);
+		}
+
+		// 向下对齐，绝不放大 / round down, never upscale here
+		dstWidth = std::max(ONNX_INPUT_ALIGN, dstWidth / ONNX_INPUT_ALIGN * ONNX_INPUT_ALIGN);
+		dstHeight = std::max(ONNX_INPUT_ALIGN, dstHeight / ONNX_INPUT_ALIGN * ONNX_INPUT_ALIGN);
+
+		if (dstWidth != (uint32_t)srcSize.cx || dstHeight != (uint32_t)srcSize.cy) {
 			_d3dDC = deviceResources.GetD3DDC();
 
 			_downscaledTex = DirectXHelper::CreateTexture2D(
@@ -207,8 +223,10 @@ bool OnnxEffectDrawer::Initialize(
 			backendInput = _downscaledTex.get();
 
 			Logger::Get().Info(fmt::format(
-				"ONNX pre-downscale: {}x{} -> {}x{} before inference",
-				srcSize.cx, srcSize.cy, dstWidth, dstHeight));
+				"ONNX input resample: {}x{} -> {}x{} ({})",
+				srcSize.cx, srcSize.cy, dstWidth, dstHeight,
+				(onnxOptions.onnxRenderWidth != 0 && onnxOptions.onnxRenderHeight != 0)
+					? "pre-downscale" : "alignment only"));
 		}
 	}
 
