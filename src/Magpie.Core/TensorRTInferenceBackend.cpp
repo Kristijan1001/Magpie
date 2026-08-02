@@ -450,6 +450,14 @@ bool TensorRTInferenceBackend::Initialize(
 }
 
 void TensorRTInferenceBackend::Evaluate() noexcept {
+	// QPC 计时：这些阶段都会阻塞 CPU / these stages all block the CPU
+	const auto now = []() noexcept {
+		LARGE_INTEGER t;
+		QueryPerformanceCounter(&t);
+		return (uint64_t)t.QuadPart;
+	};
+	const uint64_t tStart = now();
+
 	if (_evaluateFailed) {
 		// 已失败，直接跳过，让画面按未加 AI 的方式继续
 		// Already failed: skip, so the frame passes through without AI instead
@@ -465,6 +473,8 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 		return;
 	}
 
+	const uint64_t tAcquiredIn = now();
+
 	_d3dDC->CSSetShaderResources(0, 1, &_inputTexSrv);
 	_d3dDC->CSSetSamplers(0, 1, &_sampler);
 	{
@@ -476,6 +486,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	_d3dDC->Dispatch(_texToTensorDispatchCount.first, _texToTensorDispatchCount.second, 1);
 
 	_inputBufferKmt->ReleaseSync(++_inputBufferMutexKey);
+	const uint64_t tToTensor = now();
 
 	{
 		cudaExternalSemaphore_t semArr[] = {
@@ -523,6 +534,8 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	}
 	
 	// 输出张量 -> 输出纹理
+	const uint64_t tInfer = now();
+
 	hr = _outputBufferKmt->AcquireSync(_outputBufferMutexKey, INFINITE);
 	if (FAILED(hr)) {
 		Logger::Get().ComError("AcquireSync 失败", hr);
@@ -552,6 +565,30 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	}
 
 	_outputBufferKmt->ReleaseSync(++_outputBufferMutexKey);
+	const uint64_t tEnd = now();
+
+	_perfAcquireIn += tAcquiredIn - tStart;
+	_perfToTensor += tToTensor - tAcquiredIn;
+	_perfInfer += tInfer - tToTensor;
+	_perfToTexture += tEnd - tInfer;
+
+	if (++_perfFrames >= 120) {
+		LARGE_INTEGER freq;
+		QueryPerformanceFrequency(&freq);
+		const double toMs = 1000.0 / (double)freq.QuadPart / _perfFrames;
+		Logger::Get().Info(fmt::format(
+			"ONNX per-frame (avg of {}): acquire-in {:.2f} ms, tex->tensor {:.2f} ms, "
+			"inference {:.2f} ms, tensor->tex {:.2f} ms, total {:.2f} ms",
+			_perfFrames,
+			_perfAcquireIn * toMs, _perfToTensor * toMs,
+			_perfInfer * toMs, _perfToTexture * toMs,
+			(_perfAcquireIn + _perfToTensor + _perfInfer + _perfToTexture) * toMs));
+		_perfFrames = 0;
+		_perfAcquireIn = 0;
+		_perfToTensor = 0;
+		_perfInfer = 0;
+		_perfToTexture = 0;
+	}
 }
 
 void TensorRTInferenceBackend::_OnEvaluateFailed() noexcept {
