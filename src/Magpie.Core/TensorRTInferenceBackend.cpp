@@ -26,7 +26,6 @@
 
 namespace Magpie {
 
-
 static void LogCudaError(std::string_view msg, cudaError_t cudaResult) noexcept {
 	Logger::Get().Error(fmt::format("{}\n\tCUDA error code: {}", msg, (int)cudaResult));
 }
@@ -211,7 +210,6 @@ bool TensorRTInferenceBackend::Initialize(
 		return false;
 	}
 
-	Logger::Get().Error("[trace] trt: cudaSetDevice");
 	cudaResult = cudaSetDevice(deviceId);
 	if (cudaResult != cudaError_t::cudaSuccess) {
 		LogCudaError("cudaSetDevice 失败", cudaResult);
@@ -230,9 +228,7 @@ bool TensorRTInferenceBackend::Initialize(
 	try {
 		const OrtApi& ortApi = Ort::GetApi();
 
-		Logger::Get().Error("[trace] trt: creating Ort::Env");
 		_env = Ort::Env(ORT_LOGGING_LEVEL_INFO, "", _OrtLog, nullptr);
-		Logger::Get().Error("[trace] trt: Ort::Env ok");
 
 		Ort::SessionOptions sessionOptions;
 		sessionOptions.SetIntraOpNumThreads(1);
@@ -450,18 +446,11 @@ bool TensorRTInferenceBackend::Initialize(
 }
 
 void TensorRTInferenceBackend::Evaluate() noexcept {
-	// QPC 计时：这些阶段都会阻塞 CPU / these stages all block the CPU
-	const auto now = []() noexcept {
-		LARGE_INTEGER t;
-		QueryPerformanceCounter(&t);
-		return (uint64_t)t.QuadPart;
-	};
-	const uint64_t tStart = now();
-
 	if (_evaluateFailed) {
-		// 已失败，直接跳过，让画面按未加 AI 的方式继续
-		// Already failed: skip, so the frame passes through without AI instead
-		// of going black.
+		// 已失败：停止推理，避免刷屏。注意输出纹理仍在链上，需重新开始缩放
+		// Latched: stop inferring so a broken session does not spam the log every
+		// frame. The model's output texture is still wired into the chain, so the
+		// picture does not recover here - scaling must be restarted.
 		return;
 	}
 
@@ -472,8 +461,6 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 		_OnEvaluateFailed();
 		return;
 	}
-
-	const uint64_t tAcquiredIn = now();
 
 	_d3dDC->CSSetShaderResources(0, 1, &_inputTexSrv);
 	_d3dDC->CSSetSamplers(0, 1, &_sampler);
@@ -486,7 +473,6 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	_d3dDC->Dispatch(_texToTensorDispatchCount.first, _texToTensorDispatchCount.second, 1);
 
 	_inputBufferKmt->ReleaseSync(++_inputBufferMutexKey);
-	const uint64_t tToTensor = now();
 
 	{
 		cudaExternalSemaphore_t semArr[] = {
@@ -534,7 +520,6 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	}
 	
 	// 输出张量 -> 输出纹理
-	const uint64_t tInfer = now();
 
 	hr = _outputBufferKmt->AcquireSync(_outputBufferMutexKey, INFINITE);
 	if (FAILED(hr)) {
@@ -565,30 +550,7 @@ void TensorRTInferenceBackend::Evaluate() noexcept {
 	}
 
 	_outputBufferKmt->ReleaseSync(++_outputBufferMutexKey);
-	const uint64_t tEnd = now();
 
-	_perfAcquireIn += tAcquiredIn - tStart;
-	_perfToTensor += tToTensor - tAcquiredIn;
-	_perfInfer += tInfer - tToTensor;
-	_perfToTexture += tEnd - tInfer;
-
-	if (++_perfFrames >= 120) {
-		LARGE_INTEGER freq;
-		QueryPerformanceFrequency(&freq);
-		const double toMs = 1000.0 / (double)freq.QuadPart / _perfFrames;
-		Logger::Get().Info(fmt::format(
-			"ONNX per-frame (avg of {}): acquire-in {:.2f} ms, tex->tensor {:.2f} ms, "
-			"inference {:.2f} ms, tensor->tex {:.2f} ms, total {:.2f} ms",
-			_perfFrames,
-			_perfAcquireIn * toMs, _perfToTensor * toMs,
-			_perfInfer * toMs, _perfToTexture * toMs,
-			(_perfAcquireIn + _perfToTensor + _perfInfer + _perfToTexture) * toMs));
-		_perfFrames = 0;
-		_perfAcquireIn = 0;
-		_perfToTensor = 0;
-		_perfInfer = 0;
-		_perfToTexture = 0;
-	}
 }
 
 void TensorRTInferenceBackend::_OnEvaluateFailed() noexcept {
@@ -627,7 +589,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 	// any smaller window, but not a larger one. So round the input up to the next
 	// standard tier, and if a BIGGER engine for this model is already cached,
 	// reuse its dimensions so we get a cache hit instead of building again.
-	Logger::Get().Error("[trace] _CreateSession: enter");
 	static constexpr uint32_t TIERS[][2] = {
 		{1280, 720}, {1920, 1080}, {2560, 1440}, {3200, 1800},
 		{3840, 2160}, {5120, 2880}, {7680, 4320}
@@ -646,7 +607,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 		profileHeight = std::min(inputHeight, 65535u);
 	}
 
-	Logger::Get().Error("[trace] _CreateSession: tiers done");
 	{
 		// cache dir names are <stem>_<W>x<H>_<hash>
 		const std::wstring stem = ModelStem(modelPath);
@@ -700,7 +660,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 		profileHeight = std::clamp(std::max(dynamicMaxHeight, inputHeight), 1u, 65535u);
 	}
 
-	Logger::Get().Error("[trace] _CreateSession: cache scan done");
 	if (staticEngine) {
 		// 静态引擎：min=opt=max，最快但只适用于该分辨率
 		// Static: min=opt=max. Fastest, because TensorRT tunes kernels for this
@@ -724,7 +683,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 	const std::pair<uint16_t, uint16_t> maxShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 	const std::pair<uint16_t, uint16_t> optShapes{ uint16_t(profileWidth), uint16_t(profileHeight) };
 
-	Logger::Get().Error("[trace] _CreateSession: shapes done");
 	const bool enableFP16 = true;
 	const uint8_t optimizationLevel = 5;
 
@@ -734,7 +692,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 		return false;
 	}
 
-	Logger::Get().Error("[trace] _CreateSession: model read, calling GetCacheDir");
 	const std::wstring cacheDir = GetCacheDir(
 		modelData,
 		modelPath,
@@ -750,7 +707,6 @@ bool TensorRTInferenceBackend::_CreateSession(
 		return false;
 	}
 
-	Logger::Get().Error("[trace] _CreateSession: cache dir ready");
 	const std::wstring cacheCtxPath = cacheDir + L"\\ctx.onnx";
 
 	const OrtApi& ortApi = Ort::GetApi();

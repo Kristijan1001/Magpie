@@ -74,7 +74,6 @@ static void SetGpuPriority() noexcept {
 }
 
 ScalingError Renderer::Initialize(HWND hwndAttach, OverlayOptions& overlayOptions) noexcept {
-	Logger::Get().Error("[trace] Renderer::Initialize: enter");
 	_backendThread = std::thread(&Renderer::_BackendThreadProc, this);
 
 	if (!_frontendResources.Initialize(true)) {
@@ -472,7 +471,6 @@ static std::optional<EffectDesc> CompileEffect(
 }
 
 ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
-	Logger::Get().Error("[trace] _BuildEffects: enter");
 	const ScalingOptions& options = ScalingWindow::Get().Options();
 	const bool noFP16 = !_backendResources.IsFP16Supported() || options.IsFP16Disabled();
 
@@ -510,7 +508,6 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 
 	ID3D11Texture2D* inOutTexture = _frameSource->GetOutput();
 
-	Logger::Get().Error("[trace] onnx drawer: initializing");
 	// ONNX 模型应用于第一个效果之前 / the ONNX model runs before the first effect
 	if (!_onnxEffectDrawer.Initialize(
 		_backendResources,
@@ -520,7 +517,6 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 		Logger::Get().Error("初始化 ONNX 效果失败 / ONNX effect failed to initialize");
 		return nullptr;
 	}
-	Logger::Get().Error("[trace] onnx drawer: ok");
 	for (uint32_t i = 0; i < effectCount; ++i) {
 		if (!_effectDrawers[i].Initialize(
 			_effectDescs[i],
@@ -651,7 +647,6 @@ ID3D11Texture2D* Renderer::_ResizeEffects() noexcept {
 
 	ID3D11Texture2D* inOutTexture = _frameSource->GetOutput();
 
-	Logger::Get().Error("[trace] onnx drawer: initializing");
 	// ONNX 模型应用于第一个效果之前 / the ONNX model runs before the first effect
 	if (!_onnxEffectDrawer.Initialize(
 		_backendResources,
@@ -661,7 +656,6 @@ ID3D11Texture2D* Renderer::_ResizeEffects() noexcept {
 		Logger::Get().Error("初始化 ONNX 效果失败 / ONNX effect failed to initialize");
 		return nullptr;
 	}
-	Logger::Get().Error("[trace] onnx drawer: ok");
 	for (uint32_t i = 0; i < effectCount; ++i) {
 		if (!_effectDrawers[i].ResizeTextures(
 			_effectDescs[i],

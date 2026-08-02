@@ -80,14 +80,6 @@ private:
 	// spamming the log and drawing a black screen.
 	bool _evaluateFailed = false;
 
-	// 每帧各阶段耗时统计 / per-stage timing, averaged over a window
-	uint32_t _perfFrames = 0;
-	uint64_t _perfAcquireIn = 0;
-	uint64_t _perfToTensor = 0;
-	uint64_t _perfInfer = 0;
-	uint64_t _perfAcquireOut = 0;
-	uint64_t _perfToTexture = 0;
-
 	void _OnEvaluateFailed() noexcept;
 };
 

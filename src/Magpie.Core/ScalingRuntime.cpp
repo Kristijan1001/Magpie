@@ -49,7 +49,6 @@ ScalingRuntime::~ScalingRuntime() {
 }
 
 bool ScalingRuntime::Start(HWND hwndSrc, ScalingOptions&& options, bool force) {
-	Logger::Get().Error("[trace] ScalingRuntime::Start: enter");
 	assert(!options.screenshotsDir.empty() && options.showToast && options.showError && options.save);
 
 	_Dispatcher().TryEnqueue([this, hwndSrc, options(std::move(options)), force]() mutable {
