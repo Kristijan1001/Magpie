@@ -189,6 +189,18 @@
   <data name="Settings_AI.Header" xml:space="preserve">
     <value>AI upscaling</value>
   </data>
+  <data name="Settings_AI_Models.Description" xml:space="preserve">
+    <value>ONNX models are not bundled - put your own in the models folder and they appear in every profile's model list. OpenModelDB is a good place to find them. Check each model's own licence before using it.</value>
+  </data>
+  <data name="Settings_AI_Models.Header" xml:space="preserve">
+    <value>AI upscaling models</value>
+  </data>
+  <data name="Settings_AI_Models_BrowseLink.Content" xml:space="preserve">
+    <value>Browse OpenModelDB</value>
+  </data>
+  <data name="Settings_AI_Models_OpenFolderButton.Content" xml:space="preserve">
+    <value>Open models folder</value>
+  </data>
   <data name="Settings_AI_Runtime.Description" xml:space="preserve">
     <value>The ONNX Runtime, TensorRT, CUDA and DirectML libraries that AI upscaling needs. They are about 950 MB to download and 2.4 GB on disk, so they are not bundled with Magpie. Everything else works without them.</value>
   </data>

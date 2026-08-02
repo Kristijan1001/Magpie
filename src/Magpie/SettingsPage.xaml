@@ -121,6 +121,20 @@
 				              IsClosable="False"
 				              IsOpen="{x:Bind ViewModel.IsOnnxRuntimeError, Mode=OneWay}"
 				              Severity="Error" />
+				<local:SettingsCard x:Uid="Settings_AI_Models"
+				                    IsWrapEnabled="True">
+					<local:SettingsCard.HeaderIcon>
+						<FontIcon Glyph="&#xE8B7;" />
+					</local:SettingsCard.HeaderIcon>
+					<local:SimpleStackPanel Orientation="Horizontal"
+					                        VerticalAlignment="Center"
+					                        Spacing="8">
+						<HyperlinkButton x:Uid="Settings_AI_Models_BrowseLink"
+						                 NavigateUri="https://openmodeldb.info/" />
+						<Button x:Uid="Settings_AI_Models_OpenFolderButton"
+						        Click="{x:Bind ViewModel.OpenModelsLocation}" />
+					</local:SimpleStackPanel>
+				</local:SettingsCard>
 			</local:SettingsGroup>
 		</local:SimpleStackPanel>
 	</local:PageFrame>

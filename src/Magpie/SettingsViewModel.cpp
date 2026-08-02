@@ -89,6 +89,17 @@ void SettingsViewModel::CancelOnnxRuntimeDownload() {
 	OnnxRuntimeService::Get().Cancel();
 }
 
+fire_and_forget SettingsViewModel::OpenModelsLocation() const noexcept {
+	// 目录可能还不存在，先建出来，否则资源管理器会报错
+	// The folder may not exist yet; create it first or Explorer just errors.
+	const std::wstring modelsDir =
+		(Win32Helper::GetExePath().parent_path() / L"models").wstring();
+	Win32Helper::CreateDir(modelsDir, true);
+
+	co_await resume_background();
+	ShellExecute(nullptr, L"open", modelsDir.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+}
+
 IVector<IInspectable> SettingsViewModel::Languages() const {
 	std::span<const wchar_t*> tags = LocalizationService::Get().SupportedLanguages();
 

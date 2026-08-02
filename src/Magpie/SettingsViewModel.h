@@ -44,6 +44,7 @@ struct SettingsViewModel : SettingsViewModelT<SettingsViewModel>,
 	bool IsOnnxRuntimeProgressIndeterminate() const noexcept;
 	void DownloadOnnxRuntime();
 	void CancelOnnxRuntimeDownload();
+	fire_and_forget OpenModelsLocation() const noexcept;
 
 private:
 	void _OnnxRuntimeService_StatusChanged(::Magpie::OnnxRuntimeStatus status);
