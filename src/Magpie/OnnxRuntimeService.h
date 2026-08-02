@@ -43,9 +43,6 @@ public:
 		return _downloadProgress;
 	}
 
-	// 下载体积（字节），用于在按钮上显示大小
-	static constexpr uint64_t DOWNLOAD_SIZE = 972u * 1024 * 1024;
-
 	winrt::fire_and_forget DownloadAndInstall();
 
 	void Cancel() noexcept {
@@ -65,7 +62,8 @@ private:
 	// Extraction goes through the in-box tar.exe: it is bsdtar/libarchive with
 	// liblzma and reads 7z natively, which avoids taking an LZMA dependency
 	// just to unpack one download.
-	bool _Extract(const std::wstring& archivePath, const std::wstring& destDir) noexcept;
+	bool _Extract(const std::wstring& archivePath, const std::wstring& destDir,
+		const wchar_t* subDir) noexcept;
 
 	std::wstring _ThirdPartyDir() const noexcept;
 

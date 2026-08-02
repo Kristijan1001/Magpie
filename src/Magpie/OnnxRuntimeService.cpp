@@ -17,11 +17,42 @@ using namespace Windows::Web::Http;
 
 namespace Magpie {
 
-// 运行时已经作为 release 资源发布，直接取用，不再另行分发
-// The runtime is already published as a release asset, so it is fetched from
-// there rather than redistributed again.
-static constexpr const wchar_t* RUNTIME_URL =
-	L"https://github.com/Blinue/Magpie/releases/download/onnx-preview2/ext-tensorrt-x64.7z";
+// 运行时已经作为 release 资源发布，直接取用，不再另行分发。
+// 注意运行时分散在两个资源里：onnxruntime.dll 和 DirectML.dll 在主包的
+// third_party\ 下，TensorRT/CUDA 那几个大文件在单独的 ext 包里。
+//
+// The runtime is already published as release assets, so it is fetched from
+// there rather than redistributed again. It is split across two of them:
+// onnxruntime.dll and DirectML.dll live under third_party\ inside the main
+// package, while the large TensorRT/CUDA libraries are in the ext package.
+struct RuntimePackage {
+	const wchar_t* url;
+	const wchar_t* fileName;
+	// 主包里带 third_party\ 前缀，需要剥掉一层
+	// The main package nests them under third_party\, so strip one level.
+	const wchar_t* subDir;
+	// 已存在则跳过，重试时不必重新下载近 1 GB
+	// Skipped when already present, so a retry does not refetch ~1 GB.
+	const wchar_t* probe;
+	uint64_t approxBytes;
+};
+
+static constexpr RuntimePackage PACKAGES[] = {
+	{
+		L"https://github.com/Blinue/Magpie/releases/download/onnx-preview2/Magpie-onnx-preview2-x64.zip",
+		L"onnx-core.zip",
+		L"third_party",
+		L"onnxruntime.dll",
+		26ull * 1024 * 1024
+	},
+	{
+		L"https://github.com/Blinue/Magpie/releases/download/onnx-preview2/ext-tensorrt-x64.7z",
+		L"onnx-ext.7z",
+		nullptr,
+		L"nvinfer_10.dll",
+		973ull * 1024 * 1024
+	}
+};
 
 std::wstring OnnxRuntimeService::_ThirdPartyDir() const noexcept {
 	return (Win32Helper::GetExePath().parent_path() / L"third_party").wstring();
@@ -43,7 +74,8 @@ void OnnxRuntimeService::_Status(OnnxRuntimeStatus value) {
 
 bool OnnxRuntimeService::_Extract(
 	const std::wstring& archivePath,
-	const std::wstring& destDir
+	const std::wstring& destDir,
+	const wchar_t* subDir
 ) noexcept {
 	// tar.exe 一定在 System32，用绝对路径避免 PATH 被劫持
 	// tar.exe always lives in System32; use the absolute path so a hijacked
@@ -61,8 +93,14 @@ bool OnnxRuntimeService::_Extract(
 		return false;
 	}
 
+	// bsdtar 能按路径挑选条目，--strip-components 去掉外层目录
+	// bsdtar can select entries by path; --strip-components drops the wrapper
+	// directory so the files land directly in destDir.
 	std::wstring cmdLine = StrHelper::Concat(
 		L"\"", tarPath, L"\" -xf \"", archivePath, L"\" -C \"", destDir, L"\"");
+	if (subDir) {
+		cmdLine += StrHelper::Concat(L" --strip-components=1 ", subDir);
+	}
 
 	STARTUPINFO si{ .cb = sizeof(si), .dwFlags = STARTF_USESHOWWINDOW, .wShowWindow = SW_HIDE };
 	wil::unique_process_information pi;
@@ -94,13 +132,24 @@ fire_and_forget OnnxRuntimeService::DownloadAndInstall() {
 	_downloadProgress = 0;
 
 	const std::wstring thirdPartyDir = _ThirdPartyDir();
-	const std::wstring archivePath = thirdPartyDir + L"\\ext-runtime.7z";
 
 	if (!Win32Helper::DirExists(thirdPartyDir.c_str()) &&
 		!Win32Helper::CreateDir(thirdPartyDir, true)) {
 		Logger::Get().Win32Error("创建 third_party 失败");
 		_Status(OnnxRuntimeStatus::Error);
 		co_return;
+	}
+
+	// 已经就位的包不再下载，重试时只补缺的那个
+	// Skip packages already on disk so a retry only fetches what is missing.
+	uint64_t plannedBytes = 0;
+	bool needed[std::size(PACKAGES)]{};
+	for (size_t i = 0; i < std::size(PACKAGES); ++i) {
+		const std::wstring probe = thirdPartyDir + L"\\" + PACKAGES[i].probe;
+		needed[i] = !Win32Helper::FileExists(probe.c_str());
+		if (needed[i]) {
+			plannedBytes += PACKAGES[i].approxBytes;
+		}
 	}
 
 	_Status(OnnxRuntimeStatus::Downloading);
@@ -115,116 +164,109 @@ fire_and_forget OnnxRuntimeService::DownloadAndInstall() {
 	// background, and every exit path returns here before reporting.
 	bool ok = false;
 	bool cancelled = false;
+	bool failed = false;
+	// 跨多个包累计，进度条按总量走
+	// Accumulated across packages so the bar tracks the whole job.
+	uint64_t doneBytes = 0;
 
 	try {
-		HttpClient httpClient;
-		auto requestProgressOp = httpClient.GetInputStreamAsync(Uri(RUNTIME_URL));
-
-		uint64_t totalBytes = 0;
-		requestProgressOp.Progress([&totalBytes](const auto&, const HttpProgress& progress) {
-			if (std::optional<uint64_t> totalBytesToReceive = progress.TotalBytesToReceive) {
-				totalBytes = *totalBytesToReceive;
+		for (size_t i = 0; i < std::size(PACKAGES) && !cancelled && !failed; ++i) {
+			if (!needed[i]) {
+				continue;
 			}
-		});
 
-		IInputStream httpStream = co_await requestProgressOp;
+			const RuntimePackage& pkg = PACKAGES[i];
+			const std::wstring archivePath =
+				StrHelper::Concat(thirdPartyDir, L"\\", pkg.fileName);
 
-		bool downloaded = false;
-		{
-			wil::unique_hfile file(
-				CreateFile2(archivePath.c_str(), GENERIC_WRITE, 0, CREATE_ALWAYS, nullptr));
-			if (!file) {
-				Logger::Get().Win32Error("创建下载文件失败");
-			} else {
-				Buffer buffer(64 * 1024);
-				// 这个包接近 1 GB，必须用 64 位计数
-				// The package is close to 1 GB, so the counter has to be 64-bit.
-				uint64_t bytesReceived = 0;
-				bool failed = false;
+			HttpClient httpClient;
+			auto requestProgressOp = httpClient.GetInputStreamAsync(Uri(pkg.url));
+			IInputStream httpStream = co_await requestProgressOp;
 
-				while (true) {
-					IBuffer resultBuffer = co_await httpStream.ReadAsync(
-						buffer, buffer.Capacity(), InputStreamOptions::Partial);
+			{
+				wil::unique_hfile file(
+					CreateFile2(archivePath.c_str(), GENERIC_WRITE, 0, CREATE_ALWAYS, nullptr));
+				if (!file) {
+					Logger::Get().Win32Error("创建下载文件失败");
+					failed = true;
+				} else {
+					Buffer buffer(64 * 1024);
+					// 总量接近 1 GB，必须用 64 位计数
+					// Close to 1 GB in total, so the counter has to be 64-bit.
+					uint64_t pkgBytes = 0;
 
-					if (_cancelled) {
-						httpStream.Close();
-						cancelled = true;
-						break;
+					while (true) {
+						IBuffer resultBuffer = co_await httpStream.ReadAsync(
+							buffer, buffer.Capacity(), InputStreamOptions::Partial);
+
+						if (_cancelled) {
+							httpStream.Close();
+							cancelled = true;
+							break;
+						}
+
+						const uint32_t bufferSize = resultBuffer.Length();
+						if (bufferSize == 0) {
+							break;
+						}
+
+						if (!WriteFile(file.get(), resultBuffer.data(), bufferSize, nullptr, nullptr)) {
+							Logger::Get().Win32Error("WriteFile 失败");
+							failed = true;
+							break;
+						}
+
+						pkgBytes += bufferSize;
+						if (plannedBytes > 0) {
+							_downloadProgress = std::min(1.0,
+								(doneBytes + pkgBytes) / (double)plannedBytes);
+							DownloadProgressChanged.Invoke(_downloadProgress);
+						}
 					}
 
-					const uint32_t bufferSize = resultBuffer.Length();
-					if (bufferSize == 0) {
-						break;
-					}
-
-					if (!WriteFile(file.get(), resultBuffer.data(), bufferSize, nullptr, nullptr)) {
-						Logger::Get().Win32Error("WriteFile 失败");
-						failed = true;
-						break;
-					}
-
-					bytesReceived += bufferSize;
-					if (totalBytes > 0) {
-						_downloadProgress = bytesReceived / (double)totalBytes;
-						DownloadProgressChanged.Invoke(_downloadProgress);
-					}
+					doneBytes += pkgBytes;
 				}
-
-				downloaded = !failed && !cancelled;
 			}
-		}
 
-		if (cancelled) {
-			DeleteFile(archivePath.c_str());
-		} else if (downloaded) {
+			if (cancelled || failed) {
+				DeleteFile(archivePath.c_str());
+				break;
+			}
+
 			_Status(OnnxRuntimeStatus::Extracting);
 
 			// 解压会阻塞（WaitForSingleObject），必须切到后台
 			// Extraction blocks on WaitForSingleObject, so it leaves the UI
 			// thread here and returns below before anything is reported.
 			co_await resume_background();
+			const bool extracted = _Extract(archivePath, thirdPartyDir, pkg.subDir);
+			DeleteFile(archivePath.c_str());
+			co_await App::Get().Dispatcher();
 
-			if (_Extract(archivePath, thirdPartyDir)) {
-				// 解压出来的可能是一层子目录，onnxruntime.dll 必须落在 third_party\ 下
-				// The archive may unpack into a subdirectory; onnxruntime.dll has
-				// to end up directly in third_party\ or PinThirdPartyRuntimes
-				// will not find it.
-				if (!IsInstalled()) {
-					std::error_code ec;
-					for (const auto& entry :
-						std::filesystem::directory_iterator(thirdPartyDir, ec)) {
-						if (!entry.is_directory(ec)) {
-							continue;
-						}
-
-						const std::wstring inner = entry.path().wstring() + L"\\onnxruntime.dll";
-						if (!Win32Helper::FileExists(inner.c_str())) {
-							continue;
-						}
-
-						for (const auto& f :
-							std::filesystem::directory_iterator(entry.path(), ec)) {
-							std::filesystem::rename(f.path(),
-								std::filesystem::path(thirdPartyDir) / f.path().filename(), ec);
-						}
-						std::filesystem::remove_all(entry.path(), ec);
-						break;
-					}
-				}
-
-				ok = IsInstalled();
-				if (!ok) {
-					Logger::Get().Error("解压后仍找不到 onnxruntime.dll");
-				}
+			if (!extracted) {
+				failed = true;
+				break;
 			}
 
-			DeleteFile(archivePath.c_str());
+			_Status(OnnxRuntimeStatus::Downloading);
+		}
+
+		if (!cancelled && !failed) {
+			ok = IsInstalled();
+			if (!ok) {
+				Logger::Get().Error("解压后仍找不到 onnxruntime.dll");
+			}
 		}
 	} catch (const hresult_error& e) {
 		Logger::Get().Error(StrHelper::Concat(
 			"下载运行时失败 / failed to download the runtime: ",
 			StrHelper::UTF16ToUTF8(e.message())));
-		DeleteFile(archivePath.c_str());
+	}
+
+	// 清掉可能残留的半个压缩包
+	// Drop any half-written archive left behind.
+	for (const RuntimePackage& pkg : PACKAGES) {
+		DeleteFile(StrHelper::Concat(thirdPartyDir, L"\\", pkg.fileName).c_str());
 	}
 
 	// 可能仍在后台线程上（解压途中失败或抛异常），报告状态前必须切回

@@ -202,7 +202,7 @@
     <value>Open models folder</value>
   </data>
   <data name="Settings_AI_Runtime.Description" xml:space="preserve">
-    <value>The ONNX Runtime, TensorRT, CUDA and DirectML libraries that AI upscaling needs. They are about 950 MB to download and 2.4 GB on disk, so they are not bundled with Magpie. Everything else works without them.</value>
+    <value>The ONNX Runtime, TensorRT, CUDA and DirectML libraries that AI upscaling needs. They are about 1 GB to download and 2.4 GB on disk, so they are not bundled with Magpie. Everything else works without them.</value>
   </data>
   <data name="Settings_AI_Runtime.Header" xml:space="preserve">
     <value>AI upscaling runtime</value>
@@ -211,7 +211,7 @@
     <value>Cancel</value>
   </data>
   <data name="Settings_AI_Runtime_DownloadButton.Content" xml:space="preserve">
-    <value>Download (about 950 MB)</value>
+    <value>Download (about 1 GB)</value>
   </data>
   <data name="Settings_AI_Runtime_Error.Message" xml:space="preserve">
     <value>Check your connection and try again. See the log for details.</value>
