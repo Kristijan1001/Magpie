@@ -17,6 +17,12 @@ struct OnnxStatus {
 	// Invoked on the scaling thread; the implementation must marshal.
 	static inline std::function<void(std::wstring, std::wstring)> Callback;
 
+	// 必须在 third_party\onnxruntime.dll 被固定之后调用
+	// Must be called after third_party\onnxruntime.dll has been pinned, and
+	// before any Ort API use. ORT_API_MANUAL_INIT disables the header's own
+	// pre-main initialization, which would otherwise bind System32's copy.
+	static void InitOrtApi() noexcept;
+
 	static void Report(std::wstring title, std::wstring text) noexcept {
 		if (Callback) {
 			Callback(std::move(title), std::move(text));

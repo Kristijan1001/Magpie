@@ -15,6 +15,7 @@
 
 
 #include "pch.h"
+#include "OnnxStatus.h"
 #include "StrHelper.h"
 #include "App.h"
 #include "Win32Helper.h"
@@ -27,25 +28,30 @@ using namespace winrt::Magpie::implementation;
 
 // 将当前目录设为程序所在目录
 static void SetWorkingDir() noexcept {
-	const std::filesystem::path exeDir = Win32Helper::GetExePath().parent_path();
-	FAIL_FAST_IF_WIN32_BOOL_FALSE(SetCurrentDirectory(exeDir.c_str()));
+	FAIL_FAST_IF_WIN32_BOOL_FALSE(SetCurrentDirectory(
+		Win32Helper::GetExePath().parent_path().c_str()));
+}
 
-	// onnxruntime / DirectML / cudart 从 third_party 延迟加载
-	// onnxruntime, DirectML and cudart are delay-loaded out of third_party\.
-	// Without this the first delay-load - cudaD3D11GetDevice inside
-	// TensorRTInferenceBackend::Initialize - raises and kills the process.
-	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+// 固定 third_party 中的运行库，必须在使用 ORT 之前、日志初始化之后调用
+// Pin the runtimes shipped in third_party\. Must run before anything touches
+// ONNX Runtime, and after the logger exists so failures can be reported.
+//
+// Windows ships its own ONNX Runtime in System32, and
+// SetDefaultDllDirectories searches System32 before any AddDllDirectory
+// path - so an unqualified load binds the OS copy. Built against newer
+// headers, GetApi(ORT_API_VERSION) then returns nullptr and the first Ort
+// call dereferences it. Loading by absolute path pins ours; later
+// resolutions of the same name reuse the loaded module.
+//
+// This matters only since v0.12: onnxruntime.lib used to link into
+// Magpie.App.dll, which loaded after the search path was extended.
+static void PinThirdPartyRuntimes() noexcept {
+	const std::filesystem::path exeDir = Win32Helper::GetExePath().parent_path();
 	const std::wstring thirdPartyDir = (exeDir / L"third_party").wstring();
+
+	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	AddDllDirectory(thirdPartyDir.c_str());
 
-	// Windows 自带 onnxruntime.dll（System32），且它的搜索顺序在
-	// AddDllDirectory 之前，因此必须用绝对路径先加载我们自己的副本。
-	//
-	// System32 holds the OS copy of ONNX Runtime and is searched before any
-	// AddDllDirectory path, so an unqualified load binds that one. Built
-	// against newer headers, GetApi(ORT_API_VERSION) then returns nullptr and
-	// the first Ort call dereferences null. Pin ours by absolute path; later
-	// resolutions of the same name reuse this module.
 	for (const wchar_t* dllName : { L"onnxruntime.dll", L"DirectML.dll" }) {
 		const std::wstring dllPath = thirdPartyDir + L"\\" + dllName;
 		if (!LoadLibraryEx(dllPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
@@ -56,6 +62,12 @@ static void SetWorkingDir() noexcept {
 				"加载失败 / failed to preload ", StrHelper::UTF16ToUTF8(dllPath)));
 		}
 	}
+
+	// ORT_API_MANUAL_INIT 关掉了头文件里 main 之前的静态初始化，
+	// 现在才绑定 API 表，确保来自我们刚固定的 DLL
+	// ORT_API_MANUAL_INIT disabled the header's pre-main static init; bind the
+	// API table now so it comes from the DLL just pinned.
+	OnnxStatus::InitOrtApi();
 }
 
 static void InitializeLogger(const wchar_t* logFilePath) noexcept {
@@ -100,6 +112,8 @@ int APIENTRY wWinMain(
 	InitializeLogger(mode == Normal ?
 		CommonSharedConstants::LOG_PATH :
 		CommonSharedConstants::REGISTER_TOUCH_HELPER_LOG_PATH);
+
+	PinThirdPartyRuntimes();
 
 	Logger::Get().Info(fmt::format("程序启动\n\t版本: {}\n\tOS 版本: {}\n\t管理员: {}",
 #ifdef MP_VERSION_STRING

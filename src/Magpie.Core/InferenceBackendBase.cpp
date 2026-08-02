@@ -2,6 +2,7 @@
 #include "InferenceBackendBase.h"
 #include "StrHelper.h"
 #include "Logger.h"
+#include "OnnxStatus.h"
 
 namespace Magpie {
 
@@ -75,6 +76,11 @@ bool InferenceBackendBase::_IsModelValid(const Ort::Session& session, bool& isFP
 	}
 	
 	return true;
+}
+
+
+void OnnxStatus::InitOrtApi() noexcept {
+	Ort::InitApi();
 }
 
 }
