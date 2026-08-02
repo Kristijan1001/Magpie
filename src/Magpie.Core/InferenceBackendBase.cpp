@@ -81,6 +81,7 @@ bool InferenceBackendBase::_IsModelValid(const Ort::Session& session, bool& isFP
 
 void OnnxStatus::InitOrtApi() noexcept {
 	Ort::InitApi();
+	IsOrtAvailable = true;
 }
 
 }

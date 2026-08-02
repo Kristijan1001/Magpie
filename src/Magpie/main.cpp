@@ -52,10 +52,15 @@ static void PinThirdPartyRuntimes() noexcept {
 	SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	AddDllDirectory(thirdPartyDir.c_str());
 
+	bool ortLoaded = false;
 	for (const wchar_t* dllName : { L"onnxruntime.dll", L"DirectML.dll" }) {
 		const std::wstring dllPath = thirdPartyDir + L"\\" + dllName;
-		if (!LoadLibraryEx(dllPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
+		if (LoadLibraryEx(dllPath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
 			LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR)) {
+			if (dllName == L"onnxruntime.dll"sv) {
+				ortLoaded = true;
+			}
+		} else {
 			// 不致命：没有 ONNX 时缩放仍可工作
 			// Not fatal - scaling still works without ONNX.
 			Logger::Get().Win32Error(StrHelper::Concat(
@@ -67,7 +72,15 @@ static void PinThirdPartyRuntimes() noexcept {
 	// 现在才绑定 API 表，确保来自我们刚固定的 DLL
 	// ORT_API_MANUAL_INIT disabled the header's pre-main static init; bind the
 	// API table now so it comes from the DLL just pinned.
-	OnnxStatus::InitOrtApi();
+	if (ortLoaded) {
+		OnnxStatus::InitOrtApi();
+	} else {
+		// 绝不能在这里碰 Ort：延迟加载会在加载器内部抛出
+		// Never touch Ort here - the delay-load would raise inside the loader.
+		Logger::Get().Error(
+			"third_party\\onnxruntime.dll 缺失，已禁用 AI 放大 / missing, AI "
+			"upscaling disabled for this session");
+	}
 }
 
 static void InitializeLogger(const wchar_t* logFilePath) noexcept {

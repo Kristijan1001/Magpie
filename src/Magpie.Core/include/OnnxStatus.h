@@ -23,6 +23,12 @@ struct OnnxStatus {
 	// pre-main initialization, which would otherwise bind System32's copy.
 	static void InitOrtApi() noexcept;
 
+	// onnxruntime.dll 是否已加载并绑定；未加载时必须跳过所有 ONNX 代码
+	// Whether onnxruntime.dll loaded and the API table was bound. When false,
+	// every ONNX path must be skipped - the DLL is delay-loaded, so touching
+	// the API would raise inside the loader.
+	static inline bool IsOrtAvailable = false;
+
 	static void Report(std::wstring title, std::wstring text) noexcept {
 		if (Callback) {
 			Callback(std::move(title), std::move(text));

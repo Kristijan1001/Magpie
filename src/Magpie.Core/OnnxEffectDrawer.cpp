@@ -92,6 +92,12 @@ bool OnnxEffectDrawer::Initialize(
 	// The profile wins. Magpie's default profile doubles as the global
 	// setting and named profiles override it, so this gives both global and
 	// per-game config. model.json stays as a fallback for existing setups.
+	if (!OnnxStatus::IsOrtAvailable) {
+		// onnxruntime.dll 未加载，跳过（不是错误）
+		// onnxruntime.dll never loaded; skip without failing the scale.
+		return true;
+	}
+
 	const ScalingOptions& onnxOptions = ScalingWindow::Get().Options();
 	const bool fromProfile = !onnxOptions.onnxModel.empty();
 	if (fromProfile) {
