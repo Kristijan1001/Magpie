@@ -2,148 +2,97 @@
 <p align="center">
   <img src="./src/Magpie/Icons/SVG/Magpie Icon Full Disabled.svg" width="150px" height="150px" alt="Logo">
 </p>
-<h1 align="center">Magpie</h1>
+<h1 align="center">Magpie-TensorRT</h1>
 
 <div align="center">
 
-[![License](https://img.shields.io/github/license/Blinue/Magpie)](./LICENSE)
-[![build](https://github.com/Blinue/Magpie/actions/workflows/build.yml/badge.svg)](https://github.com/Blinue/Magpie/actions/workflows/build.yml)
-[![All Contributors](https://img.shields.io/github/all-contributors/Blinue/Magpie)](#acknowledgement-)
-[![Translation status](https://hosted.weblate.org/widget/magpie/svg-badge.svg)](https://hosted.weblate.org/engage/magpie)
+[![License](https://img.shields.io/github/license/Kristijan1001/Magpie-TensorRT)](./LICENSE)
+[![build](https://github.com/Kristijan1001/Magpie-TensorRT/actions/workflows/build.yml/badge.svg)](https://github.com/Kristijan1001/Magpie-TensorRT/actions/workflows/build.yml)
 
 </div>
 
-🌍 **English** | [简体中文](./README_ZH.md)
+A fork of [Magpie](https://github.com/Blinue/Magpie) that adds **AI upscaling with ONNX models**, running on **TensorRT** or **DirectML**, configurable from inside the app.
 
-Magpie is a lightweight window upscaling tool that comes equipped with a variety of efficient scaling algorithms and filters.
+Everything Magpie already does is unchanged — this only adds an optional model pass that runs before the scaling mode's effects. Without the runtime installed it behaves exactly like stock Magpie.
 
-👉 [Download](https://github.com/Blinue/Magpie/releases)
+Built on Blinue's [`onnx-preview2`](https://github.com/Blinue/Magpie/releases/tag/onnx-preview2) work, ported forward onto the current `dev` tree and finished into something usable day to day. Offered upstream as [Blinue/Magpie#1434](https://github.com/Blinue/Magpie/pull/1434).
 
-👉 [FAQ](https://github.com/Blinue/Magpie/wiki/FAQ%20(EN))
+👉 [Download](https://github.com/Kristijan1001/Magpie-TensorRT/releases)
 
-👉 [Built-in effects](https://github.com/Blinue/Magpie/wiki/Built-in%20effects)
-
-👉 [Compilation guide](https://github.com/Blinue/Magpie/wiki/Compilation%20guide)
-
-## Features
-
-* Supports both fullscreen and windowed scaling
-* Includes a variety of built-in algorithms and filters, including [Anime4K](https://github.com/bloc97/Anime4K), [FSR](https://github.com/GPUOpen-Effects/FidelityFX-FSR), CRT shaders, and more
-* Optional AI upscaling with ONNX models, via DirectML or TensorRT
-* WinUI-based user interface with support for light and dark themes
-* Multi-monitor support
+---
 
 ## Screenshots
 
-<div style="display:flex; gap:10px;">
-  <img src="img/main-window.png" alt= "Main window" height="300">
-  <img src="img/screenshot.png" alt= "Main window" height="300">
-</div>
+Per-game and global AI settings, in the profile system Magpie already has:
 
-## AI upscaling
+<img src="img/ai/profile-configured.png" alt="AI upscaling settings in a profile" width="720">
 
-Magpie can run an ONNX super-resolution model before the scaling mode's effects, using either DirectML or TensorRT. It is entirely optional — everything else works without it.
+Settings — one click to install the runtime, plus a pointer to where models come from:
 
-**Getting started**
+<img src="img/ai/settings.png" alt="AI upscaling section in Settings" width="720">
 
-1. Open **Settings → AI upscaling** and click **Download**. This fetches the runtime (about 1 GB compressed, 2.4 GB on disk) from the release assets. It is not bundled because of its size.
-2. Restart Magpie. The runtime is loaded during startup, so a fresh install only takes effect on the next launch.
-3. Put `.onnx` models in the `models` folder next to `Magpie.exe`. None are bundled; **Settings → AI upscaling models** links to [OpenModelDB](https://openmodeldb.info/) and opens the folder. Check each model's own licence before using it — many community models are non-commercial and some prohibit redistribution.
-4. Pick a model per game in its profile, or in **Defaults** for everything.
+Downloading, with progress and cancel:
 
-**Notes**
+<img src="img/ai/settings-downloading.png" alt="Runtime downloading" width="620">
 
-* **Set "AI model scale" to the model's real factor.** A mismatch produces a broken image with no error.
-* **TensorRT builds an engine on first use**, which can take several minutes. Progress is reported through the tray icon. Engines are cached per model and resolution, so this is a one-time cost per size.
-* **"Render at lower resolution first"** downscales before the model runs and lets the effect chain scale the result back up. This is what makes a native-resolution fullscreen window worth upscaling, and it cuts inference cost substantially.
-* AI upscaling requires a 64-bit build. TensorRT additionally requires an NVIDIA GPU.
+Without the runtime the AI options are disabled rather than broken, and say why:
 
-## Hints
+<img src="img/ai/profile-runtime-missing.png" alt="AI settings disabled until the runtime is installed" width="720">
 
-1. If you have set DPI scaling and the window you want to scale does not support high DPI (which is common in older games), it is recommended to first enter the program's compatibility settings and set "High DPI scaling override" to "Application".
+---
 
-2. Some games support zooming the window, but with extremely naive algorithms. Please set the resolution to the built-in (best) option.
+## Getting started
 
-## System requirements
+1. Download the [latest release](https://github.com/Kristijan1001/Magpie-TensorRT/releases) and unzip it anywhere.
+2. Open **Settings → AI upscaling** and click **Download**. This pulls the runtime (~1 GB compressed, 2.4 GB on disk) from the upstream release assets. It is not bundled because of its size.
+3. **Restart Magpie.** The runtime is pinned during startup, so a fresh install only takes effect on the next launch.
+4. Put `.onnx` models in the `models` folder next to `Magpie.exe`. **Settings → AI upscaling models** links to [OpenModelDB](https://openmodeldb.info/) and opens the folder.
+5. Pick a model in a game's profile, or in **Defaults** for everything.
 
-1. Windows 10 v1903+ or Windows 11
-2. DirectX feature level 11
+## Settings
 
-## Localization
+| Setting | What it does |
+| --- | --- |
+| **AI upscaling model** | The `.onnx` file to run, from `models\` |
+| **Render at lower resolution first** | Downscale before the model, then let the effect chain scale back up. `0` = off |
+| **AI inference backend** | DirectML or TensorRT |
+| **AI model scale** | Must match the model's real factor |
+| **Static AI engine** | TensorRT engine fixed to one window size: fastest, but rebuilds when the size changes |
+| **Dynamic engine min/max size** | Bounds of the engine's optimisation profile. `0` = auto |
 
-Thanks to [Weblate](https://weblate.org) for hosting! Click the image below to visit the translation page.
+## Things worth knowing
 
-[![Translation status](https://hosted.weblate.org/widget/magpie/multi-auto.svg)](https://hosted.weblate.org/engage/magpie)
+* **The scale must match the model.** A wrong value produces a broken image with no error. `realesr-animevideov3` is x4 despite nothing in its name saying so.
+* **The first TensorRT engine build takes minutes.** Progress is reported through the tray icon. Engines are cached per model and resolution, so it is a one-time cost per size — and an engine built for a larger size serves every smaller window.
+* **"Render at lower resolution first" is the lever that matters.** Inference dominates the frame time; the D3D11↔CUDA interop is around 0.3% of it. Running the model at 1080p or 1440p instead of native is what makes a fullscreen window worth upscaling at all.
+* **Models are not bundled.** Licences differ per model, and several popular community ones are CC-BY-NC or CC-BY-NC-SA and prohibit redistribution. Check each model's own terms.
+* **Real-CUGAN works.** It needs its input aligned to a multiple of 4, which the pre-downscale pass handles.
 
-## Acknowledgement
+## What this fork changes
 
-Thanks go to these wonderful people:
+* Ports the ONNX/TensorRT backends onto Magpie `dev` (v0.12.x)
+* Adds every AI setting to the profile system, so they work per-game and globally
+* TensorRT optimisation profiles sized from a resolution ladder instead of a hardcoded 1920x1080 cap, which made anything larger render black
+* Engine cache named `<model>_<W>x<H>_<hash>`, so switching models no longer discards the other model's engines
+* Optional pre-downscale pass before inference
+* Real-CUGAN support via input alignment
+* Fixes a startup crash caused by `System32\onnxruntime.dll` (1.17, shipped with Windows ML) winning the DLL search order over the bundled copy
+* Failures no longer kill the scaling session or require restarting the app; engine builds and errors are reported through the tray
+* In-app runtime installer
 
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Blinue"><img src="https://avatars.githubusercontent.com/u/34770031?v=4?s=100" width="100px;" alt="Xu"/><br /><sub><b>Xu</b></sub></a><br /><a href="#maintenance-Blinue" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hooke007"><img src="https://avatars.githubusercontent.com/u/41094733?v=4?s=100" width="100px;" alt="hooke007"/><br /><sub><b>hooke007</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=hooke007" title="Documentation">📖</a> <a href="#question-hooke007" title="Answering Questions">💬</a> <a href="#userTesting-hooke007" title="User Testing">📓</a> <a href="https://github.com/Blinue/Magpie/commits?author=hooke007" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://palxex.ys168.com"><img src="https://avatars.githubusercontent.com/u/58222?v=4?s=100" width="100px;" alt="Pal Lockheart"/><br /><sub><b>Pal Lockheart</b></sub></a><br /><a href="#userTesting-palxex" title="User Testing">📓</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://www.stevedonaghy.com/"><img src="https://avatars.githubusercontent.com/u/1029699?v=4?s=100" width="100px;" alt="Steve Donaghy"/><br /><sub><b>Steve Donaghy</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=neoKushan" title="Code">💻</a> <a href="#translation-neoKushan" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://gyrojeff.top"><img src="https://avatars.githubusercontent.com/u/30655701?v=4?s=100" width="100px;" alt="gyro永不抽风"/><br /><sub><b>gyro永不抽风</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=JeffersonQin" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ButtERRbrod"><img src="https://avatars.githubusercontent.com/u/89013889?v=4?s=100" width="100px;" alt="ButtERRbrod"/><br /><sub><b>ButtERRbrod</b></sub></a><br /><a href="#translation-ButtERRbrod" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/0x4E69676874466F78"><img src="https://avatars.githubusercontent.com/u/4449851?v=4?s=100" width="100px;" alt="NightFox"/><br /><sub><b>NightFox</b></sub></a><br /><a href="#translation-0x4E69676874466F78" title="Translation">🌍</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Tzugimaa"><img src="https://avatars.githubusercontent.com/u/4981077?v=4?s=100" width="100px;" alt="Tzugimaa"/><br /><sub><b>Tzugimaa</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=Tzugimaa" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/WHMHammer"><img src="https://avatars.githubusercontent.com/u/35433952?v=4?s=100" width="100px;" alt="WHMHammer"/><br /><sub><b>WHMHammer</b></sub></a><br /><a href="#translation-WHMHammer" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kato-megumi"><img src="https://avatars.githubusercontent.com/u/29451351?v=4?s=100" width="100px;" alt="kato-megumi"/><br /><sub><b>kato-megumi</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=kato-megumi" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MikeWang000000"><img src="https://avatars.githubusercontent.com/u/11748152?v=4?s=100" width="100px;" alt="Mike Wang"/><br /><sub><b>Mike Wang</b></sub></a><br /><a href="#userTesting-MikeWang000000" title="User Testing">📓</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://sammyhori.com"><img src="https://avatars.githubusercontent.com/u/116026761?v=4?s=100" width="100px;" alt="Sammy Hori"/><br /><sub><b>Sammy Hori</b></sub></a><br /><a href="#translation-sammyhori" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/NeilTohno"><img src="https://avatars.githubusercontent.com/u/28284594?v=4?s=100" width="100px;" alt="NeilTohno"/><br /><sub><b>NeilTohno</b></sub></a><br /><a href="#translation-NeilTohno" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/a0193143"><img src="https://avatars.githubusercontent.com/u/32773311?v=4?s=100" width="100px;" alt="a0193143"/><br /><sub><b>a0193143</b></sub></a><br /><a href="#translation-a0193143" title="Translation">🌍</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/soulset001"><img src="https://avatars.githubusercontent.com/u/121711747?v=4?s=100" width="100px;" alt="soulset001"/><br /><sub><b>soulset001</b></sub></a><br /><a href="#translation-soulset001" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/WluhWluh"><img src="https://avatars.githubusercontent.com/u/52004526?v=4?s=100" width="100px;" alt="WluhWluh"/><br /><sub><b>WluhWluh</b></sub></a><br /><a href="#design-WluhWluh" title="Design">🎨</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/SerdarSaglam"><img src="https://avatars.githubusercontent.com/u/42881121?v=4?s=100" width="100px;" alt="Serdar Sağlam"/><br /><sub><b>Serdar Sağlam</b></sub></a><br /><a href="#translation-SerdarSaglam" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/AndrusGerman"><img src="https://avatars.githubusercontent.com/u/30560543?v=4?s=100" width="100px;" alt="Andrus Diaz German"/><br /><sub><b>Andrus Diaz German</b></sub></a><br /><a href="#translation-AndrusGerman" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Kefir2105"><img src="https://avatars.githubusercontent.com/u/103105829?v=4?s=100" width="100px;" alt="Kefir2105"/><br /><sub><b>Kefir2105</b></sub></a><br /><a href="#translation-Kefir2105" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/animeojisan"><img src="https://avatars.githubusercontent.com/u/132756551?v=4?s=100" width="100px;" alt="animeojisan"/><br /><sub><b>animeojisan</b></sub></a><br /><a href="#translation-animeojisan" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MuscularPuky"><img src="https://avatars.githubusercontent.com/u/93962018?v=4?s=100" width="100px;" alt="MuscularPuky"/><br /><sub><b>MuscularPuky</b></sub></a><br /><a href="#translation-MuscularPuky" title="Translation">🌍</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Zoommod"><img src="https://avatars.githubusercontent.com/u/71239440?v=4?s=100" width="100px;" alt="Zoommod"/><br /><sub><b>Zoommod</b></sub></a><br /><a href="#translation-Zoommod" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/fil08"><img src="https://avatars.githubusercontent.com/u/125665523?v=4?s=100" width="100px;" alt="fil08"/><br /><sub><b>fil08</b></sub></a><br /><a href="#translation-fil08" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/IsaiasYang"><img src="https://avatars.githubusercontent.com/u/20205571?v=4?s=100" width="100px;" alt="攸羚"/><br /><sub><b>攸羚</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=IsaiasYang" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://ohaiibuzzle.dev"><img src="https://avatars.githubusercontent.com/u/23693150?v=4?s=100" width="100px;" alt="OHaiiBuzzle"/><br /><sub><b>OHaiiBuzzle</b></sub></a><br /><a href="#translation-ohaiibuzzle" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Rastadu23"><img src="https://avatars.githubusercontent.com/u/52637051?v=4?s=100" width="100px;" alt="Rastadu23"/><br /><sub><b>Rastadu23</b></sub></a><br /><a href="#translation-Rastadu23" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/hauuau"><img src="https://avatars.githubusercontent.com/u/52239673?v=4?s=100" width="100px;" alt="hauuau"/><br /><sub><b>hauuau</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=hauuau" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/nellydocs"><img src="https://avatars.githubusercontent.com/u/71311423?v=4?s=100" width="100px;" alt="nellydocs"/><br /><sub><b>nellydocs</b></sub></a><br /><a href="#translation-nellydocs" title="Translation">🌍</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/funnyplanter"><img src="https://avatars.githubusercontent.com/u/173073947?v=4?s=100" width="100px;" alt="funnyplanter"/><br /><sub><b>funnyplanter</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=funnyplanter" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/eriforce"><img src="https://avatars.githubusercontent.com/u/8393109?v=4?s=100" width="100px;" alt="Erich Yu"/><br /><sub><b>Erich Yu</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=eriforce" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/TamilNeram"><img src="https://avatars.githubusercontent.com/u/67970539?v=4?s=100" width="100px;" alt="தமிழ் நேரம்"/><br /><sub><b>தமிழ் நேரம்</b></sub></a><br /><a href="#translation-TamilNeram" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mhtvsSFrpHdE"><img src="https://avatars.githubusercontent.com/u/10773245?v=4?s=100" width="100px;" alt="mhtvsSFrpHdE"/><br /><sub><b>mhtvsSFrpHdE</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=mhtvsSFrpHdE" title="Documentation">📖</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kangurek-kao"><img src="https://avatars.githubusercontent.com/u/116571935?v=4?s=100" width="100px;" alt="Krzysztof"/><br /><sub><b>Krzysztof</b></sub></a><br /><a href="#translation-kangurek-kao" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Howard20181"><img src="https://avatars.githubusercontent.com/u/40033067?v=4?s=100" width="100px;" alt="Howard Wu"/><br /><sub><b>Howard Wu</b></sub></a><br /><a href="https://github.com/Blinue/Magpie/commits?author=Howard20181" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/arifpedia"><img src="https://avatars.githubusercontent.com/u/4081293?v=4?s=100" width="100px;" alt="Arif Budiman"/><br /><sub><b>Arif Budiman</b></sub></a><br /><a href="#translation-arifpedia" title="Translation">🌍</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Androidlate"><img src="https://avatars.githubusercontent.com/u/194900061?v=4?s=100" width="100px;" alt="Raphael"/><br /><sub><b>Raphael</b></sub></a><br /><a href="#translation-Androidlate" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/rezorrand"><img src="https://avatars.githubusercontent.com/u/7170353?v=4?s=100" width="100px;" alt="Pate L"/><br /><sub><b>Pate L</b></sub></a><br /><a href="#translation-rezorrand" title="Translation">🌍</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Carlo-Mava"><img src="https://avatars.githubusercontent.com/u/43368208?v=4?s=100" width="100px;" alt="Carlo_Mava"/><br /><sub><b>Carlo_Mava</b></sub></a><br /><a href="#translation-Carlo-Mava" title="Translation">🌍</a></td>
-    </tr>
-  </tbody>
-</table>
+## Requirements
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
+* Windows 10 v1903+ or Windows 11
+* DirectX feature level 11
+* **x64** for AI upscaling — TensorRT and the CUDA runtime have no Windows ARM64 build, so the feature is compiled out there. ARM64 builds are otherwise identical to upstream.
+* **NVIDIA GPU** for TensorRT. DirectML works on any DX12 GPU.
 
-<!-- ALL-CONTRIBUTORS-LIST:END -->
+## Credit
 
-This project follows the [all-contributors](https://allcontributors.org/) specification. Contributions of any kind are welcome!
+All of Magpie is [Blinue](https://github.com/Blinue)'s work, including the original ONNX backends this builds on. This fork exists only because these additions are not in upstream; if they land there, use upstream instead.
+
+Thanks to [Weblate](https://weblate.org) for hosting Magpie's translations.
 
 ## License
 
-This project is licensed under GPLv3.
+[GPL-3.0](./LICENSE), same as upstream.
