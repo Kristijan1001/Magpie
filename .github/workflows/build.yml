@@ -1,6 +1,7 @@
 name: build
 
 on:
+  workflow_dispatch:
   push:
     paths: [ '.github/workflows/build.yml', 'Magpie.slnx', '*.props', 'scripts/publish.py', 'src/**' ]
   pull_request:
