@@ -124,6 +124,13 @@ private:
 
 	bool _RecreateNativeEffectBackend(uint32_t effectIdx) noexcept;
 
+	bool _RebuildDLSSFrameGenerator() noexcept;
+
+	// 根据当前的效果参数重新计算帧率限制，初始化和实时调整时都会调用
+	void _UpdateFrameRateLimits() noexcept;
+
+	void _UpdateSynchronousPresentInterval() noexcept;
+
 	void _UpdateDestRect() noexcept;
 
 	HANDLE _CreateSharedTexture(ID3D11Texture2D* effectsOutput) noexcept;
@@ -227,6 +234,8 @@ private:
 	std::atomic<uint32_t> _sharedTextureGeneration = 0;
 	std::atomic<bool> _synchronousFramePresentationEnabled = false;
 	float _frameRateFilterTarget = 0.0f;
+	// 捕获方式和屏幕刷新率决定的帧率上限，不随效果参数改变
+	std::optional<float> _captureMaxFrameRate;
 	std::chrono::nanoseconds _synchronousPresentInterval{};
 	std::chrono::steady_clock::time_point _lastSynchronousPresentTime{};
 	uint32_t _dlssFgFrontendTimingFrames = 0;

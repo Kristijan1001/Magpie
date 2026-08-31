@@ -64,9 +64,31 @@ static bool IsFrameGenerationEffect(std::string_view name) noexcept {
 	return IsDLSSFrameGenerationEffect(name) || IsXeSSFrameGenerationEffect(name);
 }
 
-// 目标帧率在初始化 StepTimer 时读取，之后修改无效
 static bool IsFrameRateFilterEffect(std::string_view name) noexcept {
 	return name == "FrameRate_Filter";
+}
+
+// 创建和实时更新共用同一份解析逻辑
+static DLSSFrameGenerationSettings ParseDLSSFrameGenerationSettings(
+	const EffectOption& option
+) noexcept {
+	auto getParameter = [&](std::string_view name, float defaultValue) {
+		auto it = option.parameters.find(std::string(name));
+		return it == option.parameters.end() ? defaultValue : it->second;
+	};
+
+	return DLSSFrameGenerationSettings{
+		.multiplier = std::clamp(
+			(uint32_t)std::lround(getParameter("multiplier", 2.0f)), 2u, 4u),
+		.useMotionVectors = getParameter("useMotionVectors", 1.0f) >= 0.5f,
+		.useEstimatedDepth = getParameter("useEstimatedDepth", 0.0f) >= 0.5f
+	};
+}
+
+static float ParseFrameRateFilterTarget(const EffectOption& option) noexcept {
+	auto it = option.parameters.find("targetFrameRate");
+	return std::clamp(
+		it == option.parameters.end() ? 60.0f : it->second, 1.0f, 240.0f);
 }
 
 static double GetDisplayRefreshRate(HWND window) noexcept {
@@ -334,10 +356,14 @@ bool Renderer::_OpenFrontendSharedTextures() noexcept {
 		_frontendSharedTextures[i] = nullptr;
 		_lastAccessMutexKeys[i] = 0;
 	}
-	for (uint32_t i = 0; i < _sharedTextureSlotCount; ++i) {
+	if (!_sharedTextureHandles[0]) {
+		Logger::Get().Error("DLSSFG shared presentation slot has no handle");
+		return false;
+	}
+	// 打开所有已分配的槽位，帧生成倍数可以在缩放期间改变
+	for (uint32_t i = 0; i < MAX_SHARED_TEXTURE_SLOTS; ++i) {
 		if (!_sharedTextureHandles[i]) {
-			Logger::Get().Error("DLSSFG shared presentation slot has no handle");
-			return false;
+			continue;
 		}
 		const HRESULT hr = _frontendResources.GetD3DDevice()->OpenSharedResource(
 			_sharedTextureHandles[i],
@@ -816,8 +842,7 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 	const ScalingOptions& options = ScalingWindow::Get().Options();
 	const bool noFP16 = !_backendResources.IsFP16Supported() || options.IsFP16Disabled();
 
-	// 保存一份副本，叠加层可以实时修改其中的参数
-	_effectOptions = options.effects;
+	// _effectOptions 是 options.effects 的副本，叠加层可以实时修改其中的参数
 	const std::vector<EffectOption>& effects = _effectOptions;
 	assert(!effects.empty());
 	const uint32_t effectCount = (uint32_t)effects.size();
@@ -885,19 +910,8 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 				Logger::Get().Error("Only one DLSS Frame Generation effect is allowed");
 				return nullptr;
 			}
-			auto getParameter = [&](std::string_view name, float defaultValue) {
-				auto it = effects[i].parameters.find(std::string(name));
-				return it == effects[i].parameters.end() ? defaultValue : it->second;
-			};
-			dlssFrameGenerationSettings = DLSSFrameGenerationSettings{
-				.multiplier = std::clamp(
-					(uint32_t)std::lround(getParameter("multiplier", 2.0f)),
-					2u, 4u),
-				.useMotionVectors =
-					getParameter("useMotionVectors", 1.0f) >= 0.5f,
-				.useEstimatedDepth =
-					getParameter("useEstimatedDepth", 0.0f) >= 0.5f
-			};
+			dlssFrameGenerationSettings =
+				ParseDLSSFrameGenerationSettings(effects[i]);
 		}
 
 		// 释放 CSO 内存，不再需要它们
@@ -910,9 +924,10 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 	for (uint32_t i = 0; i < effectCount; ++i) {
 		// 帧生成的参数决定共享纹理数量和呈现方式，只能在初始化时确定；内联参数
 		// 被编译进着色器，但原生后端直接读取参数，不受影响
-		_canEditEffectParametersLive[i] = !IsFrameGenerationEffect(effects[i].name) &&
-			!IsFrameRateFilterEffect(effects[i].name) &&
-			(_nativeEffectBackends[i] ||
+		// XeSS 帧生成通过独立的呈现器实现，其参数无法实时切换
+		_canEditEffectParametersLive[i] = !IsXeSSFrameGenerationEffect(effects[i].name) &&
+			(_nativeEffectBackends[i] || IsDLSSFrameGenerationEffect(effects[i].name) ||
+				IsFrameRateFilterEffect(effects[i].name) ||
 				!(_effectDescs[i].flags & EffectFlags::InlineParams));
 	}
 
@@ -987,9 +1002,19 @@ void Renderer::_ApplyPendingEffectParameters() noexcept {
 
 		const EffectOption& option = _effectOptions[effectIdx];
 
-		if (IsFrameGenerationEffect(option.name) ||
-			IsFrameRateFilterEffect(option.name)) {
-			// 叠加层会禁用这些效果的参数，正常情况下不会执行到这里
+		if (IsFrameRateFilterEffect(option.name)) {
+			// 目标帧率同时影响 StepTimer 和帧生成的呈现节奏
+			_UpdateFrameRateLimits();
+			continue;
+		}
+
+		if (IsDLSSFrameGenerationEffect(option.name)) {
+			_RebuildDLSSFrameGenerator();
+			continue;
+		}
+
+		if (IsXeSSFrameGenerationEffect(option.name)) {
+			// 叠加层会禁用这些参数，正常情况下不会执行到这里
 			continue;
 		}
 
@@ -1029,6 +1054,100 @@ void Renderer::_ApplyPendingEffectParameters() noexcept {
 
 	// 源窗口静止时也应立刻看到调整结果
 	_forceNextRender = true;
+}
+
+bool Renderer::_RebuildDLSSFrameGenerator() noexcept {
+	if (!_dlssFrameGenerator) {
+		// 本次缩放已禁用帧生成，重建没有意义
+		return false;
+	}
+
+	const auto it = std::ranges::find_if(_effectOptions,
+		[](const EffectOption& effect) {
+			return IsDLSSFrameGenerationEffect(effect.name);
+		});
+	if (it == _effectOptions.end()) {
+		return false;
+	}
+
+	// 呈现环按最大槽位数分配，因此倍数改变无需重建共享纹理
+	if (!_InitializeDLSSFrameGenerator(
+		_effectDrawers.back().GetOutputTexture(),
+		ParseDLSSFrameGenerationSettings(*it))) {
+		Logger::Get().Error("Rebuild DLSSFG with the new parameters failed");
+		_DisableDLSSFrameGenerationForSession();
+		return false;
+	}
+
+	_sharedTextureSlotCount = std::clamp(
+		_dlssFrameGenerator->Multiplier(), 2u, MAX_SHARED_TEXTURE_SLOTS);
+	_dlssFgConsecutiveFailures = 0;
+	_dlssFgRecoveryAttempts = 0;
+	_ResetDLSSFGSlotEvents();
+	_lastSynchronousPresentTime = {};
+
+	Logger::Get().Info(fmt::format(
+		"Rebuilt DLSSFG with the new parameters: multiplier={}x slots={}",
+		_dlssFrameGenerator->Multiplier(), _sharedTextureSlotCount));
+	return true;
+}
+
+void Renderer::_UpdateSynchronousPresentInterval() noexcept {
+	if (_dlssFrameGenerator && _frameRateFilterTarget > 0.0f) {
+		const double outputFrameRate =
+			double(_frameRateFilterTarget) * _dlssFrameGenerator->Multiplier();
+		_synchronousPresentInterval = std::chrono::nanoseconds(
+			(int64_t)std::llround(1'000'000'000.0 / outputFrameRate));
+	} else {
+		_synchronousPresentInterval = {};
+	}
+}
+
+void Renderer::_UpdateFrameRateLimits() noexcept {
+	const ScalingOptions& options = ScalingWindow::Get().Options();
+
+	std::optional<float> maxFrameRate = _captureMaxFrameRate;
+
+	_frameRateFilterTarget = 0.0f;
+	for (const EffectOption& effect : _effectOptions) {
+		if (!IsFrameRateFilterEffect(effect.name)) {
+			continue;
+		}
+
+		const float targetFrameRate = ParseFrameRateFilterTarget(effect);
+		if (!maxFrameRate || targetFrameRate < *maxFrameRate) {
+			maxFrameRate = targetFrameRate;
+		}
+		_frameRateFilterTarget = _frameRateFilterTarget == 0.0f
+			? targetFrameRate
+			: std::min(_frameRateFilterTarget, targetFrameRate);
+		Logger::Get().Info(fmt::format(
+			"Frame Rate Filter enabled: {} FPS", targetFrameRate));
+	}
+
+	if (options.maxFrameRate) {
+		if (!maxFrameRate || *options.maxFrameRate < *maxFrameRate) {
+			maxFrameRate = options.maxFrameRate;
+		}
+	}
+
+	// 测试着色器性能时最小帧率应设为无限大，但由于 /fp:fast 下无限大不可靠，因此改为使用 max()，
+	// 和无限大效果相同。
+	const bool useFrameGeneration = std::ranges::any_of(
+		_effectOptions,
+		[](const EffectOption& effect) { return IsFrameGenerationEffect(effect.name); });
+	const float minFrameRate = useFrameGeneration
+		? 0.0f
+		: (options.IsBenchmarkMode()
+			? std::numeric_limits<float>::max() : options.minFrameRate);
+	if (useFrameGeneration &&
+		(options.minFrameRate > 0 || options.IsBenchmarkMode())) {
+		Logger::Get().Info(
+			"Frame Generation: minimum-FPS duplicate frame synthesis disabled");
+	}
+
+	_stepTimer.Initialize(minFrameRate, maxFrameRate);
+	_UpdateSynchronousPresentInterval();
 }
 
 bool Renderer::_RecreateNativeEffectBackend(uint32_t effectIdx) noexcept {
@@ -1261,14 +1380,6 @@ bool Renderer::_InitializeDLSSFrameGenerator(
 		{ sourceDesc.Width, sourceDesc.Height }, settings)) {
 		return false;
 	}
-	if (_frameRateFilterTarget > 0.0f) {
-		const double outputFrameRate =
-			double(_frameRateFilterTarget) * frameGenerator->Multiplier();
-		_synchronousPresentInterval = std::chrono::nanoseconds(
-			(int64_t)std::llround(1'000'000'000.0 / outputFrameRate));
-	} else {
-		_synchronousPresentInterval = {};
-	}
 	const double refreshRate = GetDisplayRefreshRate(ScalingWindow::Get().Handle());
 	const double theoreticalOutput = _frameRateFilterTarget > 0.0f ?
 		double(_frameRateFilterTarget) * frameGenerator->Multiplier() : 0.0;
@@ -1297,6 +1408,7 @@ bool Renderer::_InitializeDLSSFrameGenerator(
 	_dlssFgRealPublishSuccess = 0;
 	_dlssFgRealPublishFailure = 0;
 	_dlssFrameGenerator = std::move(frameGenerator);
+	_UpdateSynchronousPresentInterval();
 	return true;
 }
 
@@ -1403,6 +1515,9 @@ HANDLE Renderer::_CreateSharedTexture(ID3D11Texture2D* effectsOutput) noexcept {
 	D3D11_TEXTURE2D_DESC desc;
 	effectsOutput->GetDesc(&desc);
 	SIZE textureSize = { (LONG)desc.Width, (LONG)desc.Height };
+	// 按最大槽位数分配，这样实时改变帧生成倍数时无需重建共享纹理
+	const uint32_t slotCapacity =
+		_dlssFrameGenerator ? MAX_SHARED_TEXTURE_SLOTS : 1u;
 	_sharedTextureSlotCount = _dlssFrameGenerator ?
 		std::clamp(_dlssFrameGenerator->Multiplier(), 2u, MAX_SHARED_TEXTURE_SLOTS) : 1u;
 	_sharedTextureGeneration.fetch_add(1, std::memory_order_release);
@@ -1416,7 +1531,7 @@ HANDLE Renderer::_CreateSharedTexture(ID3D11Texture2D* effectsOutput) noexcept {
 		_sharedTextureMutexKeys[i].store(0, std::memory_order_relaxed);
 	}
 
-	for (uint32_t i = 0; i < _sharedTextureSlotCount; ++i) {
+	for (uint32_t i = 0; i < slotCapacity; ++i) {
 		_backendSharedTextures[i] = DirectXHelper::CreateTexture2D(
 			_backendResources.GetD3DDevice(),
 			DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -1580,6 +1695,9 @@ HANDLE Renderer::_InitBackend() noexcept {
 		_backendThreadDispatcher = dqc.DispatcherQueue();
 	}
 
+	// 保存一份副本，叠加层可以实时修改其中的参数
+	_effectOptions = ScalingWindow::Get().Options().effects;
+
 	if (!_backendResources.Initialize(false)) {
 		return NULL;
 	}
@@ -1591,7 +1709,6 @@ HANDLE Renderer::_InitBackend() noexcept {
 		return NULL;
 	}
 	{
-		std::optional<float> maxFrameRate;
 		if (_frameSource->WaitType() == FrameSourceWaitType::NoWait) {
 			// 某些捕获方式不会限制捕获帧率，因此将捕获帧率限制为屏幕刷新率
 			const HWND hwndSrc = ScalingWindow::Get().SrcTracker().Handle();
@@ -1604,52 +1721,12 @@ HANDLE Renderer::_InitBackend() noexcept {
 
 				if (dm.dmDisplayFrequency > 0) {
 					Logger::Get().Info(fmt::format("屏幕刷新率: {}", dm.dmDisplayFrequency));
-					maxFrameRate = float(dm.dmDisplayFrequency);
+					_captureMaxFrameRate = float(dm.dmDisplayFrequency);
 				}
 			}
 		}
 
-		const ScalingOptions& options = ScalingWindow::Get().Options();
-		for (const EffectOption& effect : options.effects) {
-			if (effect.name != "FrameRate_Filter") {
-				continue;
-			}
-			auto it = effect.parameters.find("targetFrameRate");
-			const float targetFrameRate = std::clamp(
-				it == effect.parameters.end() ? 60.0f : it->second,
-				1.0f,
-				240.0f
-			);
-			if (!maxFrameRate || targetFrameRate < *maxFrameRate) {
-				maxFrameRate = targetFrameRate;
-			}
-			_frameRateFilterTarget = _frameRateFilterTarget == 0.0f
-				? targetFrameRate
-				: std::min(_frameRateFilterTarget, targetFrameRate);
-			Logger::Get().Info(fmt::format(
-				"Frame Rate Filter enabled: {} FPS", targetFrameRate));
-		}
-		if (options.maxFrameRate) {
-			if (!maxFrameRate || *options.maxFrameRate < *maxFrameRate) {
-				maxFrameRate = options.maxFrameRate;
-			}
-		}
-		
-		// 测试着色器性能时最小帧率应设为无限大，但由于 /fp:fast 下无限大不可靠，因此改为使用 max()，
-		// 和无限大效果相同。
-		const bool useFrameGeneration = std::ranges::any_of(
-			options.effects,
-			[](const EffectOption& effect) { return IsFrameGenerationEffect(effect.name); });
-		const float minFrameRate = useFrameGeneration
-			? 0.0f
-			: (options.IsBenchmarkMode()
-				? std::numeric_limits<float>::max() : options.minFrameRate);
-		if (useFrameGeneration &&
-			(options.minFrameRate > 0 || options.IsBenchmarkMode())) {
-			Logger::Get().Info(
-				"Frame Generation: minimum-FPS duplicate frame synthesis disabled");
-		}
-		_stepTimer.Initialize(minFrameRate, maxFrameRate);
+		_UpdateFrameRateLimits();
 	}
 
 	ID3D11Texture2D* outputTexture = _BuildEffects();

@@ -7,6 +7,11 @@ namespace Magpie {
 
 void StepTimer::Initialize(float minFrameRate, std::optional<float> maxFrameRate) noexcept {
 	assert(minFrameRate >= 0);
+
+	// 实时调整帧率限制时会再次调用，因此必须先还原为初始状态
+	_minInterval = {};
+	_maxInterval = nanoseconds::max();
+
 	if (minFrameRate > 0) {
 		_maxInterval = duration_cast<nanoseconds>(duration<float>(1 / minFrameRate));
 	}

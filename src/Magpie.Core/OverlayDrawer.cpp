@@ -1111,39 +1111,45 @@ bool OverlayDrawer::_DrawEffectParameters(int& itemId) noexcept {
 
 			ImGui::PushID(itemId++);
 
-			bool changed = false;
+			// 参数可以声明为 float 或 int，取值范围统一按 float 处理
+			float minValue;
+			float maxValue;
+			float step;
+			bool isInteger;
 			if (param.constant.index() == 0) {
 				const EffectConstant<float>& constant = std::get<0>(param.constant);
-
-				ImGui::TextUnformatted(label.c_str());
-				ImGui::SetNextItemWidth(-FLT_MIN);
-				if (ImGui::SliderFloat("##value", &value,
-					constant.minValue, constant.maxValue, "%.2f")) {
-					if (constant.step > 0) {
-						value = constant.minValue + std::round(
-							(value - constant.minValue) / constant.step) * constant.step;
-					}
-					value = std::clamp(value, constant.minValue, constant.maxValue);
-					changed = true;
-				}
+				minValue = constant.minValue;
+				maxValue = constant.maxValue;
+				step = constant.step;
+				// 步长为 1 且边界是整数的浮点参数其实是整数，例如帧生成的倍数
+				isInteger = step == 1.0f && minValue == std::floor(minValue) &&
+					maxValue == std::floor(maxValue);
 			} else {
 				const EffectConstant<int>& constant = std::get<1>(param.constant);
-				int intValue = std::clamp(
-					(int)std::lround(value), constant.minValue, constant.maxValue);
+				minValue = (float)constant.minValue;
+				maxValue = (float)constant.maxValue;
+				step = (float)constant.step;
+				isInteger = true;
+			}
+
+			bool changed = false;
+			if (isInteger) {
+				const int intMin = (int)minValue;
+				const int intMax = (int)maxValue;
+				int intValue = std::clamp((int)std::lround(value), intMin, intMax);
 
 				std::string comboLabel;
 				SmallVector<std::string> items;
-				if (ParseLabelItems(label, constant.minValue,
-					constant.maxValue, comboLabel, items)) {
+				if (ParseLabelItems(label, intMin, intMax, comboLabel, items)) {
 					ImGui::TextUnformatted(comboLabel.c_str());
 					ImGui::SetNextItemWidth(-FLT_MIN);
 
-					const int selected = intValue - constant.minValue;
+					const int selected = intValue - intMin;
 					if (ImGui::BeginCombo("##value", items[selected].c_str())) {
 						for (int i = 0; i < (int)items.size(); ++i) {
 							const bool isSelected = i == selected;
 							if (ImGui::Selectable(items[i].c_str(), isSelected)) {
-								intValue = constant.minValue + i;
+								intValue = intMin + i;
 								changed = true;
 							}
 							if (isSelected) {
@@ -1152,7 +1158,7 @@ bool OverlayDrawer::_DrawEffectParameters(int& itemId) noexcept {
 						}
 						ImGui::EndCombo();
 					}
-				} else if (constant.minValue == 0 && constant.maxValue == 1) {
+				} else if (intMin == 0 && intMax == 1) {
 					bool boolValue = intValue != 0;
 					if (ImGui::Checkbox(label.c_str(), &boolValue)) {
 						intValue = boolValue ? 1 : 0;
@@ -1161,12 +1167,22 @@ bool OverlayDrawer::_DrawEffectParameters(int& itemId) noexcept {
 				} else {
 					ImGui::TextUnformatted(label.c_str());
 					ImGui::SetNextItemWidth(-FLT_MIN);
-					changed = ImGui::SliderInt("##value", &intValue,
-						constant.minValue, constant.maxValue);
+					changed = ImGui::SliderInt("##value", &intValue, intMin, intMax);
 				}
 
 				if (changed) {
 					value = (float)intValue;
+				}
+			} else {
+				ImGui::TextUnformatted(label.c_str());
+				ImGui::SetNextItemWidth(-FLT_MIN);
+				if (ImGui::SliderFloat("##value", &value, minValue, maxValue, "%.2f")) {
+					if (step > 0) {
+						value = minValue +
+							std::round((value - minValue) / step) * step;
+					}
+					value = std::clamp(value, minValue, maxValue);
+					changed = true;
 				}
 			}
 
