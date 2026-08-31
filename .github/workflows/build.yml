@@ -37,6 +37,19 @@ jobs:
         cd DLSS_SDK
         git sparse-checkout set include
 
+    - name: Enable NVIDIA DLSS features
+      run: |
+        $sdk = "$env:GITHUB_WORKSPACE\DLSS_SDK"
+        $xml = '<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003"><PropertyGroup>' +
+          '<EnableDLSSSR>true</EnableDLSSSR>' +
+          '<EnableDLSSFrameGeneration>true</EnableDLSSFrameGeneration>' +
+          '<EnableDLSSNR>true</EnableDLSSNR>' +
+          '<DLSSSdkDir>' + $sdk + '</DLSSSdkDir>' +
+          '</PropertyGroup></Project>'
+        Set-Content -Path src\BuildOptions.props.user -Value $xml -Encoding utf8
+        Get-Content src\BuildOptions.props.user
+        Get-ChildItem "$sdk\include" | Select-Object -First 3 Name
+
     - name: Build
       if: github.ref != 'refs/heads/dev' && github.ref != 'refs/heads/main'
       run: python scripts/publish.py --compiler=${{ matrix.compiler }} --platform=${{ matrix.platform }}
