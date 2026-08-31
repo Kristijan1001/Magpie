@@ -35,7 +35,7 @@ jobs:
       run: |
         git clone --depth 1 --filter=blob:none --sparse https://github.com/NVIDIA/DLSS.git DLSS_SDK
         cd DLSS_SDK
-        git sparse-checkout set include
+        git sparse-checkout set include lib/Windows_x86_64/x64
 
     - name: Enable NVIDIA DLSS features
       run: |
