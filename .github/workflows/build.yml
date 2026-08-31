@@ -31,6 +31,12 @@ jobs:
         path: ~/.conan2/p
         key: Conan-${{ hashFiles('src/**/conanfile.txt') }}-${{ matrix.compiler }}-${{ matrix.platform }}
 
+    - name: Fetch NVIDIA DLSS SDK headers
+      run: |
+        git clone --depth 1 --filter=blob:none --sparse https://github.com/NVIDIA/DLSS.git DLSS_SDK
+        cd DLSS_SDK
+        git sparse-checkout set include
+
     - name: Build
       if: github.ref != 'refs/heads/dev' && github.ref != 'refs/heads/main'
       run: python scripts/publish.py --compiler=${{ matrix.compiler }} --platform=${{ matrix.platform }}
