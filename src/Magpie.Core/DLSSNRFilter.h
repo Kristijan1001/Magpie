@@ -5,6 +5,7 @@ namespace Magpie {
 
 class DeviceResources;
 class NgxD3D12Core;
+struct EffectOption;
 
 struct DLSSNRSettings {
 	int preset = 0;
@@ -20,6 +21,9 @@ struct DLSSNRSettings {
 	uint32_t depthInferenceInterval = 4;
 };
 
+// 定义于 NativeEffectBackendFactory.cpp，创建和实时更新共用同一份解析逻辑
+DLSSNRSettings ParseDLSSNRSettings(const EffectOption& option) noexcept;
+
 // Experimental same-resolution DLSS neural filter. Magpie only owns the
 // composited colour frame, so valid zero-filled motion/depth textures are used
 // as explicit temporal guides.
@@ -34,6 +38,10 @@ public:
 
 	FrameGuidanceRequirements GetFrameGuidanceRequirements() const noexcept override;
 	bool Drain() noexcept override;
+
+	NativeEffectParameterUpdate UpdateParameters(
+		const EffectOption& option
+	) noexcept override;
 
 	bool Initialize(
 		DeviceResources& resources,

@@ -891,6 +891,21 @@ DLSSNRFilter::GetFrameGuidanceRequirements() const noexcept {
 	return result;
 }
 
+NativeEffectParameterUpdate DLSSNRFilter::UpdateParameters(
+	const EffectOption& option
+) noexcept {
+	const DLSSNRSettings settings = ParseDLSSNRSettings(option);
+
+	// NR Preset 在创建特征时写入，只能通过重建生效。其余参数每帧提交给 NGX，
+	// 直接替换即可实时生效
+	if (settings.preset != _settings.preset) {
+		return NativeEffectParameterUpdate::NeedsRecreate;
+	}
+
+	_settings = settings;
+	return NativeEffectParameterUpdate::Applied;
+}
+
 bool DLSSNRFilter::Initialize(
 	DeviceResources& resources,
 	NgxD3D12Core& ngxCore,
@@ -1393,6 +1408,10 @@ bool DLSSNRFilter::Resize(
 	return false;
 }
 bool DLSSNRFilter::Drain() noexcept { return true; }
+NativeEffectParameterUpdate DLSSNRFilter::UpdateParameters(
+	const EffectOption&) noexcept {
+	return NativeEffectParameterUpdate::NeedsRecreate;
+}
 bool DLSSNRFilter::Draw(const NativeEffectDrawContext&) noexcept {
 	return false;
 }

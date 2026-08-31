@@ -30,6 +30,36 @@ static NativeEffectBackendResult CreateBackend(
 	return { true, std::move(backend) };
 }
 
+DLSSNRSettings ParseDLSSNRSettings(const EffectOption& option) noexcept {
+	auto getParameter = [&](std::string_view name, float defaultValue) {
+		auto it = option.parameters.find(std::string(name));
+		return it == option.parameters.end() ? defaultValue : it->second;
+	};
+
+	return DLSSNRSettings{
+		.preset = std::clamp(
+			static_cast<int>(std::lround(
+				getParameter("nrPreset", 0.0f))), 0, 3),
+		.style = std::clamp(
+			static_cast<int>(std::lround(getParameter("style", 0.0f))), 0, 2),
+		.intensity = std::clamp(getParameter("intensity", 1.0f), 0.0f, 2.0f),
+		.localToneStrength = std::clamp(
+			getParameter("localToneStrength", 1.0f), 0.0f, 2.0f),
+		.localStructureStrength = std::clamp(
+			getParameter("localStructureStrength", 1.0f), 0.0f, 2.0f),
+		.skinStructureStrength = std::clamp(
+			getParameter("skinStructureStrength", -1.0f), -1.0f, 2.0f),
+		.useAutoMask = getParameter("useAutoMask", 0.0f) >= 0.5f,
+		.uiCorrection = getParameter("uiCorrection", 0.0f) >= 0.5f,
+		.guidanceMode = std::clamp(
+			static_cast<int>(std::lround(
+				getParameter("guidanceMode", 0.0f))), 0, 3),
+		.depthInferenceInterval = static_cast<uint32_t>(std::clamp(
+			static_cast<int>(std::lround(
+				getParameter("depthInferenceInterval", 4.0f))), 1, 8))
+	};
+}
+
 NativeEffectBackendResult CreateNativeEffectBackend(
 	std::string_view effectName,
 	const EffectOption& option,
@@ -63,32 +93,7 @@ NativeEffectBackendResult CreateNativeEffectBackend(
 	}
 
 	if (effectName == "DLSSNR\\DLSSNR_AI_Filter") {
-		auto getParameter = [&](std::string_view name, float defaultValue) {
-			auto it = option.parameters.find(std::string(name));
-			return it == option.parameters.end() ? defaultValue : it->second;
-		};
-		DLSSNRSettings settings{
-			.preset = std::clamp(
-				static_cast<int>(std::lround(
-					getParameter("nrPreset", 0.0f))), 0, 3),
-			.style = std::clamp(
-				static_cast<int>(std::lround(getParameter("style", 0.0f))), 0, 2),
-			.intensity = std::clamp(getParameter("intensity", 1.0f), 0.0f, 2.0f),
-			.localToneStrength = std::clamp(
-				getParameter("localToneStrength", 1.0f), 0.0f, 2.0f),
-			.localStructureStrength = std::clamp(
-				getParameter("localStructureStrength", 1.0f), 0.0f, 2.0f),
-			.skinStructureStrength = std::clamp(
-				getParameter("skinStructureStrength", -1.0f), -1.0f, 2.0f),
-			.useAutoMask = getParameter("useAutoMask", 0.0f) >= 0.5f,
-			.uiCorrection = getParameter("uiCorrection", 0.0f) >= 0.5f,
-			.guidanceMode = std::clamp(
-				static_cast<int>(std::lround(
-					getParameter("guidanceMode", 0.0f))), 0, 3),
-			.depthInferenceInterval = static_cast<uint32_t>(std::clamp(
-				static_cast<int>(std::lround(
-					getParameter("depthInferenceInterval", 4.0f))), 1, 8))
-		};
+		const DLSSNRSettings settings = ParseDLSSNRSettings(option);
 		auto backend = std::make_unique<DLSSNRFilter>();
 		if (!backend->Initialize(resources, ngxCore, input, output, settings)) {
 			const char status[] =

@@ -57,6 +57,19 @@ public:
 		return _activeEffectDescs;
 	}
 
+	// 实时修改效果参数，可由前台线程调用。同一帧内的多次修改会合并后应用
+	void SetEffectParameter(
+		uint32_t effectIdx,
+		std::string parameterName,
+		float value
+	) noexcept;
+
+	// 各效果的参数能否实时调整，索引与 ScalingOptions::effects 一致。
+	// 和 _activeEffectDescs 一样在后台初始化期间填充，之后只读
+	const std::vector<bool>& CanEditEffectParametersLive() const noexcept {
+		return _canEditEffectParametersLive;
+	}
+
 	void StartProfile() noexcept;
 
 	void StopProfile() noexcept;
@@ -106,6 +119,10 @@ private:
 	bool _AppendBicubic(ID3D11Texture2D** inOutTexture) noexcept;
 
 	ID3D11Texture2D* _ResizeEffects() noexcept;
+
+	void _ApplyPendingEffectParameters() noexcept;
+
+	bool _RecreateNativeEffectBackend(uint32_t effectIdx) noexcept;
 
 	void _UpdateDestRect() noexcept;
 
@@ -170,6 +187,13 @@ private:
 	FrameGuidanceFrameId _capturedFrameId = 0;
 	NgxD3D12Core _ngxD3D12Core;
 	std::vector<EffectDrawer> _effectDrawers;
+	// options.effects 的副本，叠加层实时修改的参数保存在这里
+	std::vector<EffectOption> _effectOptions;
+	// 参数已改变、等待应用的效果
+	SmallVector<uint32_t> _dirtyEffectParameters;
+	// 参数改变后即使没有新的捕获帧也应渲染一次
+	bool _forceNextRender = false;
+	bool _loggedFrameGuidanceUnavailable = false;
 	std::vector<std::unique_ptr<class NativeEffectBackend>> _nativeEffectBackends;
 	std::unique_ptr<class DLSSFrameGenerator> _dlssFrameGenerator;
 	uint32_t _dlssFgConsecutiveFailures = 0;
@@ -233,6 +257,7 @@ private:
 	std::vector<EffectDesc> _effectDescs;
 	// 包含追加的 Bicubic
 	std::vector<const EffectDesc*> _activeEffectDescs;
+	std::vector<bool> _canEditEffectParametersLive;
 };
 
 }

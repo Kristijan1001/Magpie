@@ -9,6 +9,7 @@
 #include "ScalingModesService.h"
 #include "ScalingService.h"
 #include "ShortcutService.h"
+#include "StrHelper.h"
 #include "ToastService.h"
 #include "TouchHelper.h"
 #include "Win32Helper.h"
@@ -359,6 +360,7 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 	for (const EffectItem& effectItem : effects) {
 		options.effects.push_back((EffectOption)effectItem);
 	}
+	options.scalingModeIdx = (uint32_t)profile.scalingMode;
 
 	// 尝试启用触控支持
 	bool isTouchSupportEnabled;
@@ -493,6 +495,42 @@ ScalingError ScalingService::_StartScaleImpl(HWND hWnd, const Profile& profile, 
 		App::Get().Dispatcher().TryEnqueue(
 			[overlayOptions(options.overlayOptions)]() {
 				AppSettings::Get().OverlayOptions() = std::move(overlayOptions);
+				AppSettings::Get().SaveAsync();
+			}
+		);
+	};
+
+	options.saveEffectParameters = [](
+		uint32_t scalingModeIdx,
+		const std::vector<EffectOption>& effects
+	) noexcept {
+		App::Get().Dispatcher().TryEnqueue(
+			[scalingModeIdx, effects]() {
+				if (scalingModeIdx >= ScalingModesService::Get().GetScalingModeCount()) {
+					return;
+				}
+
+				ScalingMode& scalingMode =
+					ScalingModesService::Get().GetScalingMode(scalingModeIdx);
+				if (scalingMode.effects.size() != effects.size()) {
+					// 缩放模式在缩放期间被修改
+					return;
+				}
+
+				for (size_t i = 0; i < effects.size(); ++i) {
+					EffectItem& effectItem = scalingMode.effects[i];
+					if (effectItem.name != StrHelper::UTF8ToUTF16(effects[i].name)) {
+						return;
+					}
+				}
+
+				for (size_t i = 0; i < effects.size(); ++i) {
+					EffectItem& effectItem = scalingMode.effects[i];
+					for (const auto& [name, value] : effects[i].parameters) {
+						effectItem.parameters[StrHelper::UTF8ToUTF16(name)] = value;
+					}
+				}
+
 				AppSettings::Get().SaveAsync();
 			}
 		);

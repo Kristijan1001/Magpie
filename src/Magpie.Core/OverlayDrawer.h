@@ -81,6 +81,12 @@ private:
 
 	bool _DrawProfiler(const SmallVector<float>& effectTimings, uint32_t fps, int& itemId) noexcept;
 
+	bool _DrawEffectParameters(int& itemId) noexcept;
+
+	void _InitEffectParameterValues() noexcept;
+
+	void _SaveEffectParameters() noexcept;
+
 	const std::string& _GetResourceString(const std::wstring_view& key) noexcept;
 
 	float _CalcToolbarAlpha() const noexcept;
@@ -101,6 +107,9 @@ private:
 
 	SmallVector<uint32_t> _timelineColors;
 
+	// 各效果的参数当前值，第二层索引与 EffectDesc::params 一致
+	std::vector<std::vector<float>> _effectParameterValues;
+
 	struct {
 		std::string gpuName;
 	} _hardwareInfo;
@@ -116,6 +125,7 @@ private:
 	bool _isCursorOnCaptionArea = false;
 	bool _isToolbarItemActive = false;
 	bool _isProfilerVisible = false;
+	bool _isEffectParametersVisible = false;
 #ifdef _DEBUG
 	bool _isDemoWindowVisible = false;
 #endif

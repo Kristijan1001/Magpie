@@ -325,6 +325,32 @@ bool EffectDrawer::ResizeTextures(
 	return true;
 }
 
+bool EffectDrawer::UpdateParameters(
+	const EffectDesc& desc,
+	const EffectOption& option,
+	DeviceResources& deviceResources
+) noexcept {
+	assert(!(desc.flags & EffectFlags::InlineParams));
+
+	if (_textures.size() < 2 || !_textures[0] || !_textures[1]) {
+		return false;
+	}
+
+	// 参数不参与尺寸表达式，因此直接沿用现有纹理的尺寸
+	D3D11_TEXTURE2D_DESC inputDesc;
+	_textures[0]->GetDesc(&inputDesc);
+	D3D11_TEXTURE2D_DESC outputDesc;
+	_textures[1]->GetDesc(&outputDesc);
+
+	return _UpdateConstants(
+		desc,
+		option,
+		deviceResources,
+		SIZE{ (LONG)inputDesc.Width, (LONG)inputDesc.Height },
+		SIZE{ (LONG)outputDesc.Width, (LONG)outputDesc.Height }
+	);
+}
+
 SIZE EffectDrawer::_CalcOutputSize(
 	const EffectDesc& desc,
 	const EffectOption& option,

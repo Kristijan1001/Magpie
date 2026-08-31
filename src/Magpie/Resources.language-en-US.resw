@@ -907,6 +907,33 @@
   <data name="Overlay_Toolbar_Profiler" xml:space="preserve">
     <value>Profiler Window</value>
   </data>
+  <data name="Overlay_Toolbar_EffectParameters" xml:space="preserve">
+    <value>Effect Parameters Window</value>
+  </data>
+  <data name="Overlay_EffectParameters" xml:space="preserve">
+    <value>Effect Parameters</value>
+  </data>
+  <data name="Overlay_EffectParameters_NoParameters" xml:space="preserve">
+    <value>The current scaling mode has no adjustable parameters.</value>
+  </data>
+  <data name="Overlay_EffectParameters_RestartRequired" xml:space="preserve">
+    <value>These parameters take effect only after restarting scaling.</value>
+  </data>
+  <data name="Overlay_EffectParameters_Revert" xml:space="preserve">
+    <value>Revert</value>
+  </data>
+  <data name="Overlay_EffectParameters_Revert_Description" xml:space="preserve">
+    <value>Restore the values the scaling mode started with</value>
+  </data>
+  <data name="Overlay_EffectParameters_Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Overlay_EffectParameters_Save_Description" xml:space="preserve">
+    <value>Write the current values back to the scaling mode</value>
+  </data>
+  <data name="Overlay_EffectParameters_Saved" xml:space="preserve">
+    <value>Parameters saved to the scaling mode</value>
+  </data>
   <data name="Message_Windowed3DGameMode" xml:space="preserve">
     <value>Windowed scaling is not supported in 3D game mode.</value>
   </data>

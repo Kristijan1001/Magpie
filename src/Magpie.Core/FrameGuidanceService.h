@@ -48,6 +48,11 @@ public:
 	const FrameGuidanceView& ZeroView() const noexcept { return _zeroView; }
 	FrameGuidanceExtent SourceExtent() const noexcept { return _sourceExtent; }
 	bool IsInitialized() const noexcept { return _resources != nullptr; }
+	// 提供器只能在 Initialize 之前设置，实时调整参数时据此判断新的需求能否满足
+	bool HasDepthProvider() const noexcept { return _depthProvider != nullptr; }
+	bool HasMotionVectorProvider() const noexcept {
+		return _motionProvider != nullptr;
+	}
 
 private:
 	struct AdapterCache;

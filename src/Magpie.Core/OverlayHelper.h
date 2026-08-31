@@ -61,6 +61,7 @@ struct OverlayHelper {
 		static const ImWchar FullScreen = 0xE740;
 		static const ImWchar Pinned = 0xE840;
 		static const ImWchar Diagnostic = 0xE9D9;
+		static const ImWchar Parameters = 0xE9E9;
 #ifdef _DEBUG
 		static const ImWchar Design = 0xEB3C;
 #endif
@@ -75,6 +76,7 @@ struct OverlayHelper {
 		SegoeIcons::FullScreen, SegoeIcons::FullScreen,
 		SegoeIcons::Pinned, SegoeIcons::Pinned,
 		SegoeIcons::Diagnostic, SegoeIcons::Diagnostic,
+		SegoeIcons::Parameters, SegoeIcons::Parameters,
 #ifdef _DEBUG
 		SegoeIcons::Design, SegoeIcons::Design,
 #endif

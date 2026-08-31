@@ -24,6 +24,7 @@ static const float CORNER_ROUNDING = 6;
 
 static const char* TOOLBAR_WINDOW_ID = "toolbar";
 static const char* PROFILER_WINDOW_ID = "profiler";
+static const char* EFFECT_PARAMETERS_WINDOW_ID = "effectParameters";
 
 static void SetDefaultWindowOptions(
 	phmap::flat_hash_map<std::string, OverlayWindowOption>& windowOptions
@@ -32,6 +33,16 @@ static void SetDefaultWindowOptions(
 		// 右侧竖直居中
 		windowOptions.emplace(PROFILER_WINDOW_ID, OverlayWindowOption{
 			.hArea = 2,
+			.vArea = 1,
+			.hPos = 60.0f,
+			.vPos = 0.5f
+		});
+	}
+
+	if (!windowOptions.contains(EFFECT_PARAMETERS_WINDOW_ID)) {
+		// 左侧竖直居中
+		windowOptions.emplace(EFFECT_PARAMETERS_WINDOW_ID, OverlayWindowOption{
+			.hArea = 0,
 			.vArea = 1,
 			.hPos = 60.0f,
 			.vPos = 0.5f
@@ -120,6 +131,10 @@ void OverlayDrawer::Draw(
 		if (_isProfilerVisible && _DrawProfiler(effectTimings, fps, itemId)) {
 			needRedraw = true;
 		}
+
+		if (_isEffectParametersVisible && _DrawEffectParameters(itemId)) {
+			needRedraw = true;
+		}
 			
 		if (needRedraw) {
 			++count;
@@ -179,7 +194,7 @@ void OverlayDrawer::ToolbarState(Magpie::ToolbarState value) noexcept {
 }
 
 bool OverlayDrawer::AnyVisibleWindow() const noexcept {
-	bool result = _isToolbarVisible || _isProfilerVisible;
+	bool result = _isToolbarVisible || _isProfilerVisible || _isEffectParametersVisible;
 #ifdef _DEBUG
 	result = result || _isDemoWindowVisible;
 #endif
@@ -741,6 +756,11 @@ bool OverlayDrawer::_DrawToolbar(uint32_t fps, int& itemId) noexcept {
 		ImGui::SameLine();
 		const std::string& profilerStr = _GetResourceString(L"Overlay_Toolbar_Profiler");
 		drawToggleButton(_isProfilerVisible, OverlayHelper::SegoeIcons::Diagnostic, profilerStr.c_str());
+		ImGui::SameLine();
+		const std::string& effectParamsStr =
+			_GetResourceString(L"Overlay_Toolbar_EffectParameters");
+		drawToggleButton(_isEffectParametersVisible,
+			OverlayHelper::SegoeIcons::Parameters, effectParamsStr.c_str());
 #ifdef _DEBUG
 		ImGui::SameLine();
 		const std::string& demoStr = _GetResourceString(L"Overlay_Toolbar_Demo");
@@ -909,6 +929,315 @@ static std::string RectToStr(const RECT& rect) noexcept {
 #endif
 
 // 返回 true 表示应再渲染一次
+// 部分效果把可选值写在标签里，例如 "NR Style (0 Default, 1 Natural, 2 Cinematic)"，
+// 解析成功后使用下拉框而不是滑块
+static bool ParseLabelItems(
+	std::string_view label,
+	int minValue,
+	int maxValue,
+	std::string& name,
+	SmallVector<std::string>& items
+) noexcept {
+	if (label.empty() || label.back() != ')' || minValue < 0 || maxValue <= minValue) {
+		return false;
+	}
+
+	const size_t lparen = label.rfind('(');
+	if (lparen == std::string_view::npos) {
+		return false;
+	}
+
+	std::string_view body = label.substr(lparen + 1, label.size() - lparen - 2);
+
+	items.clear();
+	int expected = minValue;
+	while (!body.empty()) {
+		const size_t comma = body.find(',');
+		std::string_view token = body.substr(0, comma);
+		body = comma == std::string_view::npos
+			? std::string_view{} : body.substr(comma + 1);
+
+		while (!token.empty() && token.front() == ' ') {
+			token.remove_prefix(1);
+		}
+		while (!token.empty() && token.back() == ' ') {
+			token.remove_suffix(1);
+		}
+
+		size_t digits = 0;
+		while (digits < token.size() && token[digits] >= '0' && token[digits] <= '9') {
+			++digits;
+		}
+		if (digits == 0 || digits >= token.size() || token[digits] != ' ') {
+			return false;
+		}
+
+		int value = 0;
+		for (size_t i = 0; i < digits; ++i) {
+			value = value * 10 + (token[i] - '0');
+		}
+		if (value != expected) {
+			return false;
+		}
+
+		items.emplace_back(token.substr(digits + 1));
+		++expected;
+	}
+
+	// 标签必须完整列出所有取值
+	if (expected != maxValue + 1) {
+		return false;
+	}
+
+	name = label.substr(0, lparen);
+	while (!name.empty() && name.back() == ' ') {
+		name.pop_back();
+	}
+	return true;
+}
+
+void OverlayDrawer::_InitEffectParameterValues() noexcept {
+	const std::vector<EffectOption>& effects = ScalingWindow::Get().Options().effects;
+	const std::vector<const EffectDesc*>& effectDescs =
+		ScalingWindow::Get().Renderer().ActiveEffectDescs();
+
+	// ActiveEffectDescs 可能包含追加的 Bicubic，它不属于缩放模式
+	const size_t effectCount = std::min(effects.size(), effectDescs.size());
+	_effectParameterValues.resize(effectCount);
+
+	for (size_t i = 0; i < effectCount; ++i) {
+		const EffectDesc& desc = *effectDescs[i];
+		std::vector<float>& values = _effectParameterValues[i];
+		values.resize(desc.params.size());
+
+		for (size_t j = 0; j < desc.params.size(); ++j) {
+			const EffectParameterDesc& param = desc.params[j];
+
+			// 缩放模式没有保存该参数时使用效果的默认值
+			float value = param.constant.index() == 0
+				? std::get<0>(param.constant).defaultValue
+				: (float)std::get<1>(param.constant).defaultValue;
+
+			if (auto it = effects[i].parameters.find(param.name);
+				it != effects[i].parameters.end()) {
+				value = it->second;
+			}
+
+			values[j] = value;
+		}
+	}
+}
+
+void OverlayDrawer::_SaveEffectParameters() noexcept {
+	const ScalingOptions& options = ScalingWindow::Get().Options();
+	if (!options.saveEffectParameters) {
+		return;
+	}
+
+	const std::vector<const EffectDesc*>& effectDescs =
+		ScalingWindow::Get().Renderer().ActiveEffectDescs();
+
+	std::vector<EffectOption> effects = options.effects;
+	for (size_t i = 0; i < _effectParameterValues.size() && i < effects.size(); ++i) {
+		const EffectDesc& desc = *effectDescs[i];
+		for (size_t j = 0; j < desc.params.size(); ++j) {
+			effects[i].parameters[desc.params[j].name] = _effectParameterValues[i][j];
+		}
+	}
+
+	options.saveEffectParameters(options.scalingModeIdx, effects);
+
+	ScalingWindow::Get().ShowToast(ScalingWindow::Get().GetLocalizedString(
+		L"Overlay_EffectParameters_Saved"));
+}
+
+bool OverlayDrawer::_DrawEffectParameters(int& itemId) noexcept {
+	const ScalingOptions& options = ScalingWindow::Get().Options();
+	Renderer& renderer = ScalingWindow::Get().Renderer();
+	const std::vector<const EffectDesc*>& effectDescs = renderer.ActiveEffectDescs();
+	const std::vector<bool>& canEditLive = renderer.CanEditEffectParametersLive();
+
+	if (_effectParameterValues.empty()) {
+		_InitEffectParameterValues();
+	}
+
+	bool needRedraw = false;
+
+	{
+		const float windowWidth = 340 * _dpiScale;
+		ImGui::SetNextWindowSizeConstraints(
+			ImVec2(windowWidth, 0.0f), ImVec2(windowWidth, 600 * _dpiScale));
+	}
+
+	const std::string title = StrHelper::Concat(
+		_GetResourceString(L"Overlay_EffectParameters"),
+		"##", EFFECT_PARAMETERS_WINDOW_ID);
+	if (!ImGui::Begin(title.c_str(), &_isEffectParametersVisible,
+		ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::End();
+		return needRedraw;
+	}
+
+	bool anyParameter = false;
+
+	for (size_t effectIdx = 0; effectIdx < _effectParameterValues.size(); ++effectIdx) {
+		const EffectDesc& desc = *effectDescs[effectIdx];
+		if (desc.params.empty()) {
+			continue;
+		}
+
+		anyParameter = true;
+
+		ImGui::PushID(itemId++);
+
+		const std::string& effectName = desc.sortName.empty() ? desc.name : desc.sortName;
+		ImGui::SeparatorText(effectName.c_str());
+
+		// 帧生成效果和内联参数的效果只有重新缩放才能应用新参数
+		const bool canEdit = effectIdx < canEditLive.size() && canEditLive[effectIdx];
+		if (!canEdit) {
+			ImGui::PushTextWrapPos();
+			ImGui::TextDisabled("%s", _GetResourceString(
+				L"Overlay_EffectParameters_RestartRequired").c_str());
+			ImGui::PopTextWrapPos();
+		}
+
+		ImGui::BeginDisabled(!canEdit);
+
+		for (size_t paramIdx = 0; paramIdx < desc.params.size(); ++paramIdx) {
+			const EffectParameterDesc& param = desc.params[paramIdx];
+			float& value = _effectParameterValues[effectIdx][paramIdx];
+			const std::string& label = param.label.empty() ? param.name : param.label;
+
+			ImGui::PushID(itemId++);
+
+			bool changed = false;
+			if (param.constant.index() == 0) {
+				const EffectConstant<float>& constant = std::get<0>(param.constant);
+
+				ImGui::TextUnformatted(label.c_str());
+				ImGui::SetNextItemWidth(-FLT_MIN);
+				if (ImGui::SliderFloat("##value", &value,
+					constant.minValue, constant.maxValue, "%.2f")) {
+					if (constant.step > 0) {
+						value = constant.minValue + std::round(
+							(value - constant.minValue) / constant.step) * constant.step;
+					}
+					value = std::clamp(value, constant.minValue, constant.maxValue);
+					changed = true;
+				}
+			} else {
+				const EffectConstant<int>& constant = std::get<1>(param.constant);
+				int intValue = std::clamp(
+					(int)std::lround(value), constant.minValue, constant.maxValue);
+
+				std::string comboLabel;
+				SmallVector<std::string> items;
+				if (ParseLabelItems(label, constant.minValue,
+					constant.maxValue, comboLabel, items)) {
+					ImGui::TextUnformatted(comboLabel.c_str());
+					ImGui::SetNextItemWidth(-FLT_MIN);
+
+					const int selected = intValue - constant.minValue;
+					if (ImGui::BeginCombo("##value", items[selected].c_str())) {
+						for (int i = 0; i < (int)items.size(); ++i) {
+							const bool isSelected = i == selected;
+							if (ImGui::Selectable(items[i].c_str(), isSelected)) {
+								intValue = constant.minValue + i;
+								changed = true;
+							}
+							if (isSelected) {
+								ImGui::SetItemDefaultFocus();
+							}
+						}
+						ImGui::EndCombo();
+					}
+				} else if (constant.minValue == 0 && constant.maxValue == 1) {
+					bool boolValue = intValue != 0;
+					if (ImGui::Checkbox(label.c_str(), &boolValue)) {
+						intValue = boolValue ? 1 : 0;
+						changed = true;
+					}
+				} else {
+					ImGui::TextUnformatted(label.c_str());
+					ImGui::SetNextItemWidth(-FLT_MIN);
+					changed = ImGui::SliderInt("##value", &intValue,
+						constant.minValue, constant.maxValue);
+				}
+
+				if (changed) {
+					value = (float)intValue;
+				}
+			}
+
+			if (changed) {
+				renderer.SetEffectParameter((uint32_t)effectIdx, param.name, value);
+				needRedraw = true;
+			}
+
+			ImGui::PopID();
+		}
+
+		ImGui::EndDisabled();
+		ImGui::PopID();
+	}
+
+	if (anyParameter) {
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+
+		ImGui::PushID(itemId++);
+		if (ImGui::Button(_GetResourceString(
+			L"Overlay_EffectParameters_Revert").c_str())) {
+			_InitEffectParameterValues();
+
+			for (size_t i = 0; i < _effectParameterValues.size(); ++i) {
+				if (i >= canEditLive.size() || !canEditLive[i]) {
+					continue;
+				}
+
+				const EffectDesc& desc = *effectDescs[i];
+				for (size_t j = 0; j < desc.params.size(); ++j) {
+					renderer.SetEffectParameter((uint32_t)i,
+						desc.params[j].name, _effectParameterValues[i][j]);
+				}
+			}
+
+			needRedraw = true;
+		}
+		if (ImGui::IsItemHovered()) {
+			_imguiImpl.Tooltip(_GetResourceString(
+				L"Overlay_EffectParameters_Revert_Description").c_str(), _dpiScale);
+		}
+		ImGui::PopID();
+
+		ImGui::SameLine();
+
+		ImGui::PushID(itemId++);
+		ImGui::BeginDisabled(!options.saveEffectParameters);
+		if (ImGui::Button(_GetResourceString(
+			L"Overlay_EffectParameters_Save").c_str())) {
+			_SaveEffectParameters();
+			needRedraw = true;
+		}
+		ImGui::EndDisabled();
+		if (ImGui::IsItemHovered()) {
+			_imguiImpl.Tooltip(_GetResourceString(
+				L"Overlay_EffectParameters_Save_Description").c_str(), _dpiScale);
+		}
+		ImGui::PopID();
+	} else {
+		ImGui::PushTextWrapPos();
+		ImGui::TextUnformatted(_GetResourceString(
+			L"Overlay_EffectParameters_NoParameters").c_str());
+		ImGui::PopTextWrapPos();
+	}
+
+	ImGui::End();
+	return needRedraw;
+}
+
 bool OverlayDrawer::_DrawProfiler(const SmallVector<float>& effectTimings, uint32_t fps, int& itemId) noexcept {
 	const ScalingOptions& options = ScalingWindow::Get().Options();
 	const Renderer& renderer = ScalingWindow::Get().Renderer();

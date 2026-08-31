@@ -191,6 +191,8 @@ struct ScalingOptions {
 	DEFINE_FLAG_ACCESSOR(IsDirectFlipDisabled, ScalingFlags::DisableDirectFlip, flags)
 
 	std::vector<EffectOption> effects;
+	// 缩放模式在设置中的索引，叠加层据此将实时调整的参数写回
+	uint32_t scalingModeIdx = 0;
 	uint32_t flags = ScalingFlags::AdjustCursorSpeed;
 	Cropping cropping{};
 	GraphicsCardId graphicsCardId;
@@ -214,6 +216,11 @@ struct ScalingOptions {
 	void (*showToast)(HWND hwndTarget, std::wstring_view msg) noexcept = nullptr;
 	void (*showError)(HWND hwndTarget, ScalingError error) noexcept = nullptr;
 	void (*save)(const ScalingOptions& options, HWND hwndScaling) noexcept = nullptr;
+	// 将叠加层中实时调整的效果参数写回缩放模式
+	void (*saveEffectParameters)(
+		uint32_t scalingModeIdx,
+		const std::vector<EffectOption>& effects
+	) noexcept = nullptr;
 
 	void Log() const noexcept;
 

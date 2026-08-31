@@ -907,6 +907,33 @@
   <data name="Overlay_Toolbar_Profiler" xml:space="preserve">
     <value>性能分析器窗口</value>
   </data>
+  <data name="Overlay_Toolbar_EffectParameters" xml:space="preserve">
+    <value>效果参数窗口</value>
+  </data>
+  <data name="Overlay_EffectParameters" xml:space="preserve">
+    <value>效果参数</value>
+  </data>
+  <data name="Overlay_EffectParameters_NoParameters" xml:space="preserve">
+    <value>当前缩放模式没有可调整的参数。</value>
+  </data>
+  <data name="Overlay_EffectParameters_RestartRequired" xml:space="preserve">
+    <value>这些参数需重新缩放才能生效。</value>
+  </data>
+  <data name="Overlay_EffectParameters_Revert" xml:space="preserve">
+    <value>还原</value>
+  </data>
+  <data name="Overlay_EffectParameters_Revert_Description" xml:space="preserve">
+    <value>恢复为开始缩放时的参数值</value>
+  </data>
+  <data name="Overlay_EffectParameters_Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="Overlay_EffectParameters_Save_Description" xml:space="preserve">
+    <value>将当前参数值写回缩放模式</value>
+  </data>
+  <data name="Overlay_EffectParameters_Saved" xml:space="preserve">
+    <value>参数已保存到缩放模式</value>
+  </data>
   <data name="Message_Windowed3DGameMode" xml:space="preserve">
     <value>3D 游戏模式下不支持窗口模式缩放。</value>
   </data>

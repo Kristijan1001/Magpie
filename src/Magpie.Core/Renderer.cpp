@@ -64,6 +64,11 @@ static bool IsFrameGenerationEffect(std::string_view name) noexcept {
 	return IsDLSSFrameGenerationEffect(name) || IsXeSSFrameGenerationEffect(name);
 }
 
+// 目标帧率在初始化 StepTimer 时读取，之后修改无效
+static bool IsFrameRateFilterEffect(std::string_view name) noexcept {
+	return name == "FrameRate_Filter";
+}
+
 static double GetDisplayRefreshRate(HWND window) noexcept {
 	MONITORINFOEXW monitorInfo{};
 	monitorInfo.cbSize = sizeof(monitorInfo);
@@ -811,7 +816,9 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 	const ScalingOptions& options = ScalingWindow::Get().Options();
 	const bool noFP16 = !_backendResources.IsFP16Supported() || options.IsFP16Disabled();
 
-	const std::vector<EffectOption>& effects = options.effects;
+	// 保存一份副本，叠加层可以实时修改其中的参数
+	_effectOptions = options.effects;
+	const std::vector<EffectOption>& effects = _effectOptions;
 	assert(!effects.empty());
 	const uint32_t effectCount = (uint32_t)effects.size();
 
@@ -899,6 +906,16 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 		}
 	}
 	
+	_canEditEffectParametersLive.assign(effectCount, false);
+	for (uint32_t i = 0; i < effectCount; ++i) {
+		// 帧生成的参数决定共享纹理数量和呈现方式，只能在初始化时确定；内联参数
+		// 被编译进着色器，但原生后端直接读取参数，不受影响
+		_canEditEffectParametersLive[i] = !IsFrameGenerationEffect(effects[i].name) &&
+			!IsFrameRateFilterEffect(effects[i].name) &&
+			(_nativeEffectBackends[i] ||
+				!(_effectDescs[i].flags & EffectFlags::InlineParams));
+	}
+
 	if (_ShouldAppendBicubic(inOutTexture)) {
 		if (!_AppendBicubic(&inOutTexture)) {
 			Logger::Get().Error("_AppendBicubic 失败");
@@ -935,6 +952,115 @@ ID3D11Texture2D* Renderer::_BuildEffects() noexcept {
 	}
 
 	return inOutTexture;
+}
+
+void Renderer::SetEffectParameter(
+	uint32_t effectIdx,
+	std::string parameterName,
+	float value
+) noexcept {
+	if (!_backendThreadDispatcher) {
+		return;
+	}
+
+	// 参数只能在后台线程更新，拖动滑块产生的多次修改会合并到下一帧一并应用
+	_backendThreadDispatcher.TryEnqueue([this, effectIdx,
+		parameterName(std::move(parameterName)), value]() {
+		if (effectIdx >= _effectOptions.size()) {
+			return;
+		}
+
+		_effectOptions[effectIdx].parameters[parameterName] = value;
+
+		if (std::ranges::find(_dirtyEffectParameters, effectIdx) ==
+			_dirtyEffectParameters.end()) {
+			_dirtyEffectParameters.push_back(effectIdx);
+		}
+	});
+}
+
+void Renderer::_ApplyPendingEffectParameters() noexcept {
+	for (const uint32_t effectIdx : _dirtyEffectParameters) {
+		if (effectIdx >= _effectOptions.size()) {
+			continue;
+		}
+
+		const EffectOption& option = _effectOptions[effectIdx];
+
+		if (IsFrameGenerationEffect(option.name) ||
+			IsFrameRateFilterEffect(option.name)) {
+			// 叠加层会禁用这些效果的参数，正常情况下不会执行到这里
+			continue;
+		}
+
+		if (_nativeEffectBackends[effectIdx]) {
+			if (_nativeEffectBackends[effectIdx]->UpdateParameters(option) ==
+				NativeEffectParameterUpdate::NeedsRecreate) {
+				_RecreateNativeEffectBackend(effectIdx);
+			}
+		} else if (_effectDescs[effectIdx].flags & EffectFlags::InlineParams) {
+			// 参数已被编译进着色器，需重新编译整个效果链才能生效。叠加层会禁用
+			// 这些参数，正常情况下不会执行到这里
+			Logger::Get().Warn(fmt::format(
+				"效果#{} ({}) 内联了参数，无法实时调整", effectIdx, option.name));
+			continue;
+		} else if (!_effectDrawers[effectIdx].UpdateParameters(
+			_effectDescs[effectIdx], option, _backendResources)) {
+			Logger::Get().Error(fmt::format(
+				"更新效果#{} ({}) 的参数失败", effectIdx, option.name));
+		}
+	}
+
+	_dirtyEffectParameters.clear();
+
+	// 帧引导的提供器只能在初始化时创建，之后无法补充
+	if (!_loggedFrameGuidanceUnavailable) {
+		const FrameGuidanceRequirements requirements =
+			CollectFrameGuidanceRequirements(
+				_nativeEffectBackends, _dlssFrameGenerator.get());
+		if ((requirements.motion &&
+				!_frameGuidanceService.HasMotionVectorProvider()) ||
+			(requirements.depth && !_frameGuidanceService.HasDepthProvider())) {
+			_loggedFrameGuidanceUnavailable = true;
+			Logger::Get().Warn("Frame Guidance: provider unavailable for the new "
+				"parameters, restart scaling to apply");
+		}
+	}
+
+	// 源窗口静止时也应立刻看到调整结果
+	_forceNextRender = true;
+}
+
+bool Renderer::_RecreateNativeEffectBackend(uint32_t effectIdx) noexcept {
+	const EffectOption& option = _effectOptions[effectIdx];
+
+	if (!_DrainNgxConsumers()) {
+		Logger::Get().Error("Drain NGX consumers before recreating native effect failed");
+		return false;
+	}
+
+	// 必须先释放旧后端，SDK 特征独占资源
+	_nativeEffectBackends[effectIdx].reset();
+
+	NativeEffectBackendResult result = CreateNativeEffectBackend(
+		option.name,
+		option,
+		_backendResources,
+		_ngxD3D12Core,
+		_effectDrawers[effectIdx].GetTexture(0),
+		_effectDrawers[effectIdx].GetOutputTexture()
+	);
+	if (!result.backend) {
+		// 重建失败时该效果退化为直通，避免中断缩放
+		Logger::Get().Error(fmt::format(
+			"Recreate native effect {} failed", option.name));
+		return false;
+	}
+
+	_nativeEffectBackends[effectIdx] = std::move(result.backend);
+	Logger::Get().Info(fmt::format(
+		"Recreated native effect {} with new parameters", option.name));
+	return true;
 }
 
 void Renderer::_UpdateActiveEffectDescs() noexcept {
@@ -1011,7 +1137,8 @@ bool Renderer::_AppendBicubic(ID3D11Texture2D** inOutTexture) noexcept {
 
 ID3D11Texture2D* Renderer::_ResizeEffects() noexcept {
 	const ScalingOptions& options = ScalingWindow::Get().Options();
-	const std::vector<EffectOption>& effects = options.effects;
+	// 使用副本而不是 options.effects，否则实时调整的参数会被还原
+	const std::vector<EffectOption>& effects = _effectOptions;
 	assert(!effects.empty());
 	const uint32_t effectCount = (uint32_t)effects.size();
 	if (!_DrainNgxConsumers()) {
@@ -1379,6 +1506,10 @@ void Renderer::_BackendThreadProc() noexcept {
 			DispatchMessage(&msg);
 		}
 
+		if (!_dirtyEffectParameters.empty()) {
+			_ApplyPendingEffectParameters();
+		}
+
 		if (stepTimerStatus == StepTimerStatus::WaitForFPSLimiter) {
 			// 新帧消息可能已被处理，之后的 WaitForNextFrame 不要等待消息，直到状态变化
 			continue;
@@ -1387,7 +1518,8 @@ void Renderer::_BackendThreadProc() noexcept {
 		const FrameSourceState frameSourceState = _frameSource->Update();
 		switch (frameSourceState) {
 		case FrameSourceState::Waiting:
-			if (stepTimerStatus != StepTimerStatus::ForceNewFrame) {
+			// 参数刚刚改变时即使没有新的捕获帧也要渲染一次
+			if (stepTimerStatus != StepTimerStatus::ForceNewFrame && !_forceNextRender) {
 				if (fpsUpdated) {
 					// FPS 变化则要求前端重新渲染以更新叠加层，调整大小时这个操作十分必要
 					PostMessage(ScalingWindow::Get().Handle(),
@@ -1399,6 +1531,7 @@ void Renderer::_BackendThreadProc() noexcept {
 			// 强制帧
 			[[fallthrough]];
 		case FrameSourceState::NewFrame:
+			_forceNextRender = false;
 			_BackendRender(
 				_effectDrawers.back().GetOutputTexture(),
 				frameSourceState == FrameSourceState::NewFrame);

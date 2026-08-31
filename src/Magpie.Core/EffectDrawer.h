@@ -44,6 +44,14 @@ public:
 		ID3D11Texture2D** inOutTexture
 	) noexcept;
 
+	// 实时应用新的参数值。参数只影响常量缓冲区，纹理尺寸不受影响，因此无需重建资源。
+	// 内联参数的效果不能使用此方法，调用者应重新编译。
+	bool UpdateParameters(
+		const EffectDesc& desc,
+		const EffectOption& option,
+		DeviceResources& deviceResources
+	) noexcept;
+
 	ID3D11Texture2D* GetOutputTexture() const noexcept {
 		return _textures[1].get();
 	}
