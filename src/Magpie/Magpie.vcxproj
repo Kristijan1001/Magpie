@@ -729,15 +729,15 @@
       <Project>{0e5205ae-dfa9-4cb8-b662-e43cd6512e2a}</Project>
     </ProjectReference>
   </ItemGroup>
-  <Target Name="CopyDLSSSRRuntime" AfterTargets="Build" Condition="$(EnableDLSSSR) And '$(Platform)' == 'x64'">
+  <Target Name="CopyDLSSSRRuntime" AfterTargets="Build" Condition="$(EnableDLSSSR) And '$(Platform)' == 'x64' And Exists('$(DLSSSdkDir)\lib\Windows_x86_64\rel\nvngx_dlss.dll')">
     <Copy SourceFiles="$(DLSSSdkDir)\lib\Windows_x86_64\rel\nvngx_dlss.dll" DestinationFolder="$(OutDir)" />
     <Copy SourceFiles="$(DLSSSdkDir)\LICENSE.txt" DestinationFiles="$(OutDir)\NVIDIA-DLSS-LICENSE.txt" />
   </Target>
-  <Target Name="CopyDLSSFrameGenerationRuntime" AfterTargets="Build" Condition="$(EnableDLSSFrameGeneration) And '$(Platform)' == 'x64'">
+  <Target Name="CopyDLSSFrameGenerationRuntime" AfterTargets="Build" Condition="$(EnableDLSSFrameGeneration) And '$(Platform)' == 'x64' And Exists('$(DLSSSdkDir)\lib\Windows_x86_64\rel\nvngx_dlssg.dll')">
     <Copy SourceFiles="$(DLSSSdkDir)\lib\Windows_x86_64\rel\nvngx_dlssg.dll" DestinationFolder="$(OutDir)" />
     <Copy SourceFiles="$(DLSSSdkDir)\LICENSE.txt" DestinationFiles="$(OutDir)\NVIDIA-DLSS-LICENSE.txt" />
   </Target>
-  <Target Name="CopyDLSSNRRuntime" AfterTargets="Build" Condition="$(EnableDLSSNR) And '$(Platform)' == 'x64'">
+  <Target Name="CopyDLSSNRRuntime" AfterTargets="Build" Condition="$(EnableDLSSNR) And '$(Platform)' == 'x64' And Exists('$(DLSSNRRuntimeDir)\nvngx_dlssnr.dll')">
     <Copy SourceFiles="$(DLSSNRRuntimeDir)\nvngx_dlssnr.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopyFrameGuidanceDepthRuntime" AfterTargets="Build" Condition="$(EnableDepthAnythingV2) And '$(Platform)' == 'x64'">
