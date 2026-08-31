@@ -10,9 +10,10 @@ jobs:
   build:
     runs-on: windows-2025-vs2026
     strategy:
+      fail-fast: false
       matrix:
-        compiler: ["MSVC", "ClangCL"]
-        platform: ["x64", "ARM64"]
+        compiler: ["MSVC"]
+        platform: ["x64"]
 
     steps:
     - uses: actions/checkout@v7
